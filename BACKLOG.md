@@ -26,7 +26,7 @@ Pick a mascot in Settings (and during onboarding). It acts out every lift.
 - All sounds are self-made or synthesized, so there are no licensing issues.
 - **Done:** boxing gym, arcade, wind chimes, cowbell and soft marimba, synthesized by scripts/make-sounds.py (20 files, 1.3 MB). Settings has a pack picker with preview, and lock-screen notifications use the chosen pack.
 
-## 4. Music during workouts (needs decision, paused)
+## 4. Music during workouts (parked, back in the backlog 2026-10-06)
 Options, from simplest to richest:
 - **a.** "Open my playlist" button: links to a Spotify or Apple Music playlist URL of your choice. No SDK, no account linking, and the app stays offline. Timer sounds already play over music.
 - **b.** Apple Music via MusicKit: play and pause a playlist from inside the app. Needs an Apple Music subscription and permission.
