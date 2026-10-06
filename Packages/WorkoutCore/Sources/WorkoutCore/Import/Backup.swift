@@ -56,7 +56,7 @@ public enum BackupCodec {
         guard (1...AppBackup.currentVersion).contains(probe.version) else { throw ImportError.unsupportedVersion(probe.version) }
         var backup: AppBackup
         do { backup = try d.decode(AppBackup.self, from: data) } catch {
-            throw ImportError.wrongShape("not a Strong Babe Club backup")
+            throw ImportError.wrongShape("not a Strong Babe backup")
         }
         guard backup.workouts.count <= limits.maxWorkouts else {
             throw ImportError.tooManyRecords(count: backup.workouts.count, limit: limits.maxWorkouts)

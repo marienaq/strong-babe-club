@@ -1,4 +1,4 @@
-# XcodeGen spec for the Strong Babe Club iOS app.
+# XcodeGen spec for the Strong Babe iOS app.
 # Generate the (git-ignored) Xcode project with:  xcodegen generate
 name: StrongBabeClub
 options:
@@ -41,7 +41,8 @@ targets:
     info:
       path: App/StrongBabeClub/Resources/Info.plist
       properties:
-        CFBundleDisplayName: Strong Babe Club
+        CFBundleDisplayName: Strong Babe
+        CFBundleName: Strong Babe
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSRequiresIPhoneOS: true

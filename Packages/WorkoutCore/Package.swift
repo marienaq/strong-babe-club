@@ -1,7 +1,7 @@
 // swift-tools-version:5.9
 import PackageDescription
 
-// WorkoutCore: platform-agnostic domain logic for Strong Babe Club.
+// WorkoutCore: platform-agnostic domain logic for Strong Babe.
 // Zero third-party dependencies.
 //
 // Test modes

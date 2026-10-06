@@ -1,4 +1,4 @@
-# Strong Babe Club: Backlog
+# Strong Babe: Backlog
 
 Status: **todo** · **in progress** · **needs decision** · **done**
 

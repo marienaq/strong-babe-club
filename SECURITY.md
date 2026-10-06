@@ -1,6 +1,6 @@
 # Security and privacy
 
-Strong Babe Club is a single-user, fully offline iPhone app. This document covers the threat model, how data is handled, what the repo does to stay safe as a **public** repository, and how to report a problem.
+Strong Babe is a single-user, fully offline iPhone app. This document covers the threat model, how data is handled, what the repo does to stay safe as a **public** repository, and how to report a problem.
 
 ## Reporting a vulnerability
 

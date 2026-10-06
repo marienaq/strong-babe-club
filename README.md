@@ -1,4 +1,6 @@
-# Strong Babe Club
+# Strong Babe
+
+_(Repository: `strong-babe-club`; internal target `StrongBabeClub` and bundle id `com.marienaq.strongbabeclub` are unchanged so existing installs keep their data.)_
 
 A personal iPhone workout app that **plans each workout for you** in a coach's four-part format (warm-up, strength, metabolic, cool-down), runs it with timers, and keeps you going with streaks, stickers and a scrapbook journal. Fully offline. Built for one person (the owner); public so others can learn from it.
 

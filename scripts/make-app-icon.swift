@@ -1,4 +1,4 @@
-// Draws the Strong Babe Club app icon: Kettle the kettlebell (dark grey body,
+// Draws the Strong Babe app icon: Kettle the kettlebell (dark grey body,
 // white face, pink cheeks) on a bubblegum-pink background.
 //
 // Usage: swift scripts/make-app-icon.swift [output.png]

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build Strong Babe Club and install it on a USB-connected iPhone.
+# Build Strong Babe and install it on a USB-connected iPhone.
 #
 # Needs a gitignored `.signing.local` at the repo root containing:
 #   DEVELOPMENT_TEAM=<your team id>

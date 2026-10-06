@@ -174,7 +174,7 @@ struct SettingsView: View {
                 handleImport(result)
             }
             .fileExporter(isPresented: $showExporter, document: exportDoc, contentType: exportType,
-                          defaultFilename: exportType == .json ? "strong-babe-club-backup" : "strong-babe-club-sets") { result in
+                          defaultFilename: exportType == .json ? "strong-babe-backup" : "strong-babe-sets") { result in
                 if case .failure = result { message = "Export didn't finish." }
                 exportDoc = nil
             }
