@@ -110,6 +110,19 @@ public struct LocalDate: Hashable, Comparable, Codable, Sendable, CustomStringCo
     private static let longMonthNames = ["January", "February", "March", "April", "May", "June", "July",
                                          "August", "September", "October", "November", "December"]
     public var shortMonthName: String { LocalDate.monthNames[month - 1] }
+
+    /// First day of this date's month.
+    public var startOfMonth: LocalDate { LocalDate(year, month, 1) }
+
+    /// Same day `n` months later (clamped to the month's length).
+    public func adding(months n: Int) -> LocalDate {
+        let total = year * 12 + (month - 1) + n
+        let y = total / 12, m = total % 12 + 1
+        return LocalDate(y, m, min(day, LocalDate.daysInMonth(year: y, month: m)))
+    }
+
+    /// 1...366
+    public var dayOfYear: Int { LocalDate(year, 1, 1).days(until: self) + 1 }
     public var longMonthName: String { LocalDate.longMonthNames[month - 1] }
     /// "Mon, Oct 5"
     public var shortDisplay: String { "\(weekday.shortName), \(shortMonthName) \(day)" }
