@@ -23,6 +23,10 @@ protocol Repository: AnyObject {
     func save(goals: [Goal]) throws
     func replaceAll(_ data: StoredData) throws
     func deleteAll() throws
+    /// Inserts new workouts and commits; on failure nothing from this batch is kept.
+    func insert(batch: [PlannedWorkout]) throws
+    /// Removes workouts (used to undo a partially imported file).
+    func delete(workoutIDs: [UUID]) throws
 }
 
 @MainActor
@@ -45,4 +49,19 @@ final class InMemoryRepository: Repository {
     func save(goals: [Goal]) throws { data.goals = goals }
     func replaceAll(_ d: StoredData) throws { data = d }
     func deleteAll() throws { data = StoredData() }
+
+    /// Test hook: throw when inserting the Nth batch (1-based).
+    var failOnBatch: Int?
+    private var batches = 0
+
+    func insert(batch: [PlannedWorkout]) throws {
+        batches += 1
+        if batches == failOnBatch { throw CocoaError(.fileWriteUnknown) }
+        data.workouts.append(contentsOf: batch)
+    }
+
+    func delete(workoutIDs: [UUID]) throws {
+        let ids = Set(workoutIDs)
+        data.workouts.removeAll { ids.contains($0.id) }
+    }
 }

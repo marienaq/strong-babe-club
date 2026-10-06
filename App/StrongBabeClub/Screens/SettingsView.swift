@@ -13,6 +13,7 @@ struct SettingsView: View {
     @State private var showExporter = false
     @State private var message: String?
     @State private var confirmDelete = false
+    @AppStorage(TimerSound.defaultsKey) private var timerSounds = true
 
     var body: some View {
         NavigationStack {
@@ -31,6 +32,12 @@ struct SettingsView: View {
                             }))
                     }
                     Stepper("Target length: \(draft.targetMinutes) min", value: $draft.targetMinutes, in: 30...90, step: 5)
+                }
+                Section {
+                    Toggle("Timer sounds", isOn: $timerSounds)
+                        .accessibilityIdentifier("timerSoundsToggle")
+                } header: { Text("Timers") } footer: {
+                    Text("A boxing bell when a round ends, a \"go\" beep when work starts and a soft chime for rest. Plays over your music and with the silent switch on. The phone always buzzes too.")
                 }
                 Section {
                     Toggle("Avoid jumping", isOn: $draft.limits.avoidJumping)
@@ -58,7 +65,6 @@ struct SettingsView: View {
                 }
                 Section("Program") {
                     DatePicker("First test week", selection: dateBinding(\.testWeekStart), displayedComponents: .date)
-                    DatePicker("A Monday of week A", selection: dateBinding(\.rotationAnchor), displayedComponents: .date)
                     NavigationLink("Training maxes") { TrainingMaxView() }
                     NavigationLink("Benchmarks (\(store.benchmarks.filter(\.active).count) active)") { BenchmarksView() }
                 }
@@ -72,6 +78,21 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .disabled(store.importProgress != nil)
+            .overlay {
+                if let p = store.importProgress {
+                    VStack(spacing: 10) {
+                        Text("Importing your history…").font(.headline)
+                        ProgressView(value: Double(p.done), total: Double(max(p.total, 1)))
+                        Text("\(p.done) of \(p.total) workouts").font(.footnote).monospacedDigit().foregroundStyle(.secondary)
+                    }
+                    .padding(20)
+                    .frame(maxWidth: 280)
+                    .background(RoundedRectangle(cornerRadius: 16).fill(.regularMaterial))
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("importProgress")
+                }
+            }
             .onAppear { draft = store.settings }
             .onDisappear { if draft != store.settings { store.updateSettings(draft) } }
             .toolbar {
@@ -117,8 +138,19 @@ struct SettingsView: View {
                 throw ImportError.tooLarge(bytes: size, limit: ImportLimits.standard.maxBytes)
             }
             let data = try Data(contentsOf: url, options: [.mappedIfSafe])
-            message = try store.importFile(data)
-            Task { await store.prepare() }
+            Task {
+                do {
+                    message = try await store.importFile(data)
+                    await store.prepare()
+                } catch let e as ImportError {
+                    message = e.description
+                } catch let e as StoreError {
+                    message = e.description
+                } catch {
+                    message = "Couldn't import that file."
+                    Log.importer.error("import failed [\(Log.kind(error), privacy: .public)]")
+                }
+            }
         } catch let e as ImportError {
             message = e.description
         } catch {

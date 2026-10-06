@@ -8,8 +8,10 @@
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 pkg="$root/Packages/WorkoutCore"
-(cd "$pkg" && swift build --product WorkoutCore >/dev/null)
-bin="$(cd "$pkg" && swift build --show-bin-path)"
+# Own scratch path: never reuse a module built by a different compiler version.
+scratch="$pkg/.build/typecheck"
+(cd "$pkg" && swift build --scratch-path "$scratch" --product WorkoutCore >/dev/null)
+bin="$(cd "$pkg" && swift build --scratch-path "$scratch" --show-bin-path)"
 
 files=()
 while IFS= read -r f; do files+=("$f"); done < <(

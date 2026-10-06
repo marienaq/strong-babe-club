@@ -5,7 +5,15 @@ import WorkoutCore
 @MainActor
 struct RootView: View {
     @Environment(AppStore.self) private var store
-    @State private var tab: Tab = .today
+    @State private var tab: Tab = {
+        switch DebugRoute.tab {
+        case "journal": return .journal
+        case "progress": return .progress
+        case "settings": return .settings
+        default: return .today
+        }
+    }()
+    @State private var showBears = DebugRoute.open == "bears"
 
     enum Tab: Hashable { case today, journal, progress, settings }
 
@@ -25,6 +33,7 @@ struct RootView: View {
                 .tag(Tab.settings)
         }
         .tint(Palette.tangerineActive)
+        .fullScreen(isPresented: $showBears) { BearGallery().onTapGesture { showBears = false } }
         .alert("Oops", isPresented: Binding(get: { store.lastError != nil }, set: { if !$0 { store.lastError = nil } })) {
             Button("OK", role: .cancel) { store.lastError = nil }
         } message: {
@@ -33,19 +42,29 @@ struct RootView: View {
     }
 }
 
-/// Shared page chrome: dotted paper + margin, content inset past the margin.
+/// Shared page chrome: dotted paper + margin, content inset past the margin,
+/// with room at the bottom so everything scrolls clear of the tab bar.
 struct JournalPage<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        ZStack {
-            PaperBackground()
+        ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) { content() }
-                    .padding(.leading, 44)
-                    .padding(.trailing, 20)
-                    .padding(.top, 12)
-                    .padding(.bottom, 24)
+                VStack(alignment: .leading, spacing: 12) {
+                    content()
+                    Color.clear.frame(height: 1).id("page-bottom")
+                }
+                .padding(.leading, 44)
+                .padding(.trailing, 20)
+                .padding(.top, 12)
+                .padding(.bottom, 32)
+            }
+            .contentMargins(.bottom, 24, for: .scrollContent)
+            .background { PaperBackground() }
+            .task {
+                guard DebugRoute.scrollBottom else { return }
+                try? await Task.sleep(nanoseconds: 1_200_000_000)
+                proxy.scrollTo("page-bottom", anchor: .bottom)
             }
         }
     }

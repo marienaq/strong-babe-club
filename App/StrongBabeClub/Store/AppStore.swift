@@ -23,6 +23,9 @@ final class AppStore {
     private(set) var goals: [Goal] = []
     var lastError: String?
     private(set) var isPlanning = false
+    /// Non-nil while a file import is being saved (done, total).
+    private(set) var importProgress: (done: Int, total: Int)?
+    static let importBatchSize = 50
 
     let planner: any WorkoutPlanner
     private let repo: Repository
@@ -306,21 +309,73 @@ final class AppStore {
         persist { try repo.save(benchmarks: benchmarks) }
     }
 
+    /// UI-testing only: shuffle the next workout's metabolic piece until it
+    /// has the requested format (deterministic, bounded).
+    func debugForceMetabolic(_ formatRaw: String) async {
+        guard DebugRoute.enabled, let target = SectionFormat(rawValue: formatRaw) else { return }
+        for _ in 0..<60 {
+            guard let w = nextWorkout, w.metabolicSection?.format != target else { return }
+            await shuffle(workout: w.id, section: .metabolic)
+        }
+    }
+
     // MARK: Import / export
 
     /// Imports a user-picked JSON file: either the coach-sheet history
     /// (tools/import_sheet.py output) or an app backup. Returns a summary.
-    func importFile(_ data: Data) throws -> String {
+    ///
+    /// Coach history is decoded off the main thread, then saved in batches.
+    /// The import is all-or-nothing: if any batch fails to save, the batches
+    /// already written are removed again and the error is thrown (shown to
+    /// the user), so a half-imported journal is never left behind.
+    func importFile(_ data: Data) async throws -> String {
         switch BackupCodec.sniff(data) {
         case .coachHistory:
-            let result = try HistoryImporter().importCoachHistory(data, now: now)
-            let existingDates = Set(visibleWorkouts.filter { $0.source == "import" }.map(\.date))
-            let fresh = result.workouts.filter { !existingDates.contains($0.date) }
-            upsert(fresh)
+            let stamp = now
+            let result = try await Task.detached(priority: .userInitiated) {
+                try HistoryImporter().importCoachHistory(data, now: stamp)
+            }.value
+            // Days logged in the app win; earlier imports are replaced (re-importing
+            // a newer file fixes or updates them).
+            let appLogged = Set(visibleWorkouts.filter { $0.source != "import" && ($0.status == .done || $0.status == .excused) }.map(\.date))
+            let fresh = result.workouts.filter { !appLogged.contains($0.date) }
+            let freshDates = Set(fresh.map(\.date))
+            let replaced = visibleWorkouts.filter { $0.source == "import" && freshDates.contains($0.date) }
+            importProgress = (0, fresh.count)
+            defer { importProgress = nil }
+            var inserted: [UUID] = []
+            do {
+                try repo.delete(workoutIDs: replaced.map(\.id))
+            } catch {
+                throw StoreError.importNotSaved
+            }
+            do {
+                var start = 0
+                while start < fresh.count {
+                    let batch = Array(fresh[start..<min(start + Self.importBatchSize, fresh.count)])
+                    try repo.insert(batch: batch)
+                    inserted += batch.map(\.id)
+                    start += batch.count
+                    importProgress = (start, fresh.count)
+                    await Task.yield()
+                }
+            } catch {
+                // All or nothing: drop what was written and put back what was replaced.
+                try? repo.delete(workoutIDs: inserted)
+                try? repo.insert(batch: replaced)
+                Log.importer.error("import rolled back [\(Log.kind(error), privacy: .public)]")
+                throw StoreError.importNotSaved
+            }
+            let replacedIDs = Set(replaced.map(\.id))
+            workouts.removeAll { replacedIDs.contains($0.id) }
+            workouts.append(contentsOf: fresh)
+            workouts.sort { $0.date < $1.date }
             if benchmarks.isEmpty { proposeBenchmarks() }
             rollTrainingMaxes(asOf: today)
             Log.importer.info("imported \(fresh.count, privacy: .public) workouts, \(result.issues.count, privacy: .public) issues")
-            return "Imported \(fresh.count) workouts" + (result.skipped > 0 ? " (\(result.skipped) skipped)" : "") + "."
+            var summary = result.summary(imported: fresh.count, alreadyPresent: result.workouts.count - fresh.count)
+            if !replaced.isEmpty { summary += " \(replaced.count) earlier imported workouts were updated." }
+            return summary
         case .appBackup:
             let (backup, issues) = try BackupCodec.decode(data)
             let d = StoredData(settings: backup.settings, workouts: backup.workouts, liftPrograms: backup.liftPrograms,
@@ -369,6 +424,16 @@ final class AppStore {
     private func fail(_ message: String, _ error: Error) {
         lastError = message
         Log.store.error("\(message, privacy: .public) [\(Log.kind(error), privacy: .public)]")
+    }
+}
+
+enum StoreError: Error, CustomStringConvertible {
+    case importNotSaved
+
+    var description: String {
+        switch self {
+        case .importNotSaved: return "Couldn't save the import, so nothing was changed. Please try again."
+        }
     }
 }
 

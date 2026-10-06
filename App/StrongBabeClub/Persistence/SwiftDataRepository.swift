@@ -95,6 +95,21 @@ final class SwiftDataRepository: Repository {
         })
     }
 
+    func insert(batch: [PlannedWorkout]) throws {
+        do {
+            for w in batch { try insert(w) }
+            try context.save()
+        } catch {
+            context.rollback()
+            throw error
+        }
+    }
+
+    func delete(workoutIDs: [UUID]) throws {
+        for id in workoutIDs { try deleteWorkout(id: id) }
+        try context.save()
+    }
+
     /// Replaces every row of a small table.
     private func replace<T: PersistentModel>(_ type: T.Type, with rows: [T]) throws {
         for old in try context.fetch(FetchDescriptor<T>()) { context.delete(old) }

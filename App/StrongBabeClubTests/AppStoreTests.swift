@@ -83,16 +83,79 @@ final class AppStoreTests: XCTestCase {
           "logged_weights_lb": [85, 110, 135, 160, 185]}]}]
         """
         let store = makeStore()
-        let message = try store.importFile(Data(json.utf8))
-        XCTAssertTrue(message.contains("Imported 1"))
-        await store.prepare()
+        await store.prepare() // TMs start as defaults (no history yet)
+        XCTAssertEqual(store.liftPrograms[.deadlift]?.trainingMax, 65)
+        let message = try await store.importFile(Data(json.utf8))
+        XCTAssertEqual(message, "Imported 1 of 1 workouts.")
+        // Regression: imported history must refresh history-based training maxes.
         XCTAssertEqual(store.liftPrograms[.deadlift]?.trainingMax, 195)
+        // Re-importing replaces the earlier import (no duplicates).
+        let again = try await store.importFile(Data(json.utf8))
+        XCTAssertEqual(again, "Imported 1 of 1 workouts. 1 earlier imported workouts were updated.")
+        XCTAssertEqual(store.visibleWorkouts.filter { $0.source == "import" }.count, 1)
         let backup = try store.exportBackup()
         let other = makeStore()
-        _ = try other.importFile(backup)
+        _ = try await other.importFile(backup)
         XCTAssertEqual(other.workouts.count, store.workouts.count)
-        XCTAssertThrowsError(try store.importFile(Data("hello".utf8)))
+        do {
+            _ = try await store.importFile(Data("hello".utf8))
+            XCTFail("expected an error")
+        } catch {}
         XCTAssertTrue(store.exportCSV().contains("Deadlift"))
+    }
+
+    static var fixture: Data {
+        get throws {
+            try Data(contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("Packages/WorkoutCore/Tests/Fixtures/sample_history.json"))
+        }
+    }
+
+    /// A day logged in the app is never overwritten by an import.
+    func testImportKeepsAppLoggedDays() async throws {
+        let store = makeStore()
+        await store.prepare()
+        let w = try XCTUnwrap(store.nextWorkout) // Mon Oct 19
+        store.finish(workout: w.id, feedback: WorkoutFeedback(), sticker: .bear, minutes: 40)
+        let json = "[{\"date\": \"2026-10-19\", \"sections\": [{\"kind\": \"warmup\", \"items\": []}]}]"
+        let message = try await store.importFile(Data(json.utf8))
+        XCTAssertEqual(message, "Imported 0 of 1 workouts (1 already in your journal).")
+        XCTAssertEqual(store.workout(on: LocalDate(2026, 10, 19))?.sticker, .bear)
+    }
+
+    /// The synthetic fixture lands in the journal and the progress series.
+    func testFixtureImportFeedsJournalAndProgress() async throws {
+        let store = makeStore()
+        let message = try await store.importFile(try Self.fixture)
+        XCTAssertTrue(message.hasPrefix("Imported 5 of 8 workouts (skipped 3: "), message)
+        XCTAssertEqual(store.doneWorkouts.count, 4)
+        XCTAssertEqual(ProgressSeries.lift(.deadlift, workouts: store.visibleWorkouts).map(\.topWeight), [140])
+        XCTAssertEqual(ProgressSeries.lift(.backSquat, workouts: store.visibleWorkouts).count, 1)
+        XCTAssertNil(store.importProgress)
+    }
+
+    /// A save failure part-way through leaves nothing behind and is reported.
+    func testImportIsAllOrNothing() async throws {
+        var many: [String] = []
+        var d = LocalDate(2025, 1, 6)
+        for _ in 0..<(AppStore.importBatchSize + 20) {
+            many.append("{\"date\": \"\(d.iso)\", \"sections\": [{\"kind\": \"strength\", \"items\": [{\"letter\": \"A\", \"reps\": 5, \"movement\": \"Deadlift\"}], \"logged_weights_lb\": [100]}]}")
+            d = d.adding(days: 2)
+        }
+        let repo = InMemoryRepository()
+        repo.failOnBatch = 2
+        let store = AppStore(repository: repo, clock: { self.monday })
+        store.load()
+        do {
+            _ = try await store.importFile(Data(("[" + many.joined(separator: ",") + "]").utf8))
+            XCTFail("expected the import to fail")
+        } catch let e as StoreError {
+            XCTAssertEqual(e, .importNotSaved)
+        }
+        XCTAssertTrue(try repo.load().workouts.isEmpty, "first batch rolled back")
+        XCTAssertTrue(store.workouts.isEmpty)
+        XCTAssertNil(store.importProgress)
     }
 
     func testSettingsAreSanitized() {
@@ -151,5 +214,28 @@ final class SwiftDataRepositoryTests: XCTestCase {
         try repo.deleteAll()
         XCTAssertTrue(try repo.load().workouts.isEmpty)
         XCTAssertTrue(try repo.load().goals.isEmpty)
+    }
+}
+
+import AVFoundation
+
+/// The synthesized timer cues ship in the app bundle and are usable both for
+/// in-app playback and as notification sounds (< 30 s, LPCM WAV).
+@MainActor
+final class TimerSoundTests: XCTestCase {
+    func testEveryCueHasAPlayableBundledSound() throws {
+        let bundle = Bundle(for: AppStore.self)
+        for cue in TimerCue.allCases {
+            let name = (cue.soundFile as NSString).deletingPathExtension
+            let url = try XCTUnwrap(bundle.url(forResource: name, withExtension: "wav"), cue.soundFile)
+            let player = try AVAudioPlayer(contentsOf: url)
+            XCTAssertGreaterThan(player.duration, 0.3, cue.soundFile)
+            XCTAssertLessThan(player.duration, 30, "notification sounds must be under 30 s")
+        }
+    }
+
+    func testEachCueHasItsOwnHaptic() {
+        let haptics = TimerCue.allCases.map { "\(TimerSound.haptic(for: $0))" }
+        XCTAssertEqual(Set(haptics).count, TimerCue.allCases.count)
     }
 }
