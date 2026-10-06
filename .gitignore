@@ -52,3 +52,6 @@ xcodegen/
 xcodegen.zip
 gitleaks
 gitleaks.tgz
+
+# Local device-signing settings (personal team ID), never committed
+.signing.local
