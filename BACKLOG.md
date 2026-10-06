@@ -30,6 +30,7 @@ Pick a mascot in Settings (and during onboarding). It acts out every lift.
 Options, from simplest to richest:
 - **a.** "Open my playlist" button: links to a Spotify or Apple Music playlist URL of your choice. No SDK, no account linking, and the app stays offline. Timer sounds already play over music.
 - **b.** Apple Music via MusicKit: play and pause a playlist from inside the app. Needs an Apple Music subscription and permission.
+- **Decision so far:** parked. The owner has Spotify Premium. The full Spotify SDK is limited to 25 allowlisted users unless Spotify grants extended quota, which is hard for small apps, so it doesn't scale to other users. If we revisit, start with option (a).
 - **c.** Spotify SDK: play and pause, plus playlist picking inside the app. Needs a Spotify developer app registration, Spotify Premium and the Spotify app installed. It's the first time the app would talk to an outside service, which changes the privacy story.
 
 ## 5. Support other users, not just the owner (in progress)
