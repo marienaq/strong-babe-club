@@ -52,6 +52,7 @@ final class AppStore {
             liftPrograms = Dictionary(d.liftPrograms.map { ($0.lift, $0) }, uniquingKeysWith: { _, b in b })
             benchmarks = d.benchmarks
             goals = d.goals
+            clearImportedStickers()
             Log.store.info("loaded \(self.workouts.count, privacy: .public) workouts")
         } catch {
             fail("Couldn't open your journal.", error)
@@ -129,8 +130,14 @@ final class AppStore {
     }
 
     var todayIsDone: Bool { workout(on: today)?.status == .done }
-    var streak: StreakSummary { Motivation.streak(visibleWorkouts, today: today) }
-    var completion: CompletionSummary { Motivation.completion(visibleWorkouts, today: today) }
+    var streak: StreakSummary { Motivation.streak(visibleWorkouts, today: today, schedule: settings.sortedSchedule, breaks: settings.breaks) }
+    var completion: CompletionSummary {
+        Motivation.completion(visibleWorkouts, today: today, schedule: settings.sortedSchedule, breaks: settings.breaks)
+    }
+    /// Missed scheduled days for the Journal (long gaps grouped).
+    var missedEntries: [MissedEntry] {
+        MissedLog.entries(visibleWorkouts, today: today, schedule: settings.sortedSchedule, breaks: settings.breaks)
+    }
     var stickerSlots: [StickerSlot] { StickerPage.slots(visibleWorkouts, today: today) }
     var doneWorkouts: [PlannedWorkout] { visibleWorkouts.filter { $0.status == .done } }
 
@@ -167,7 +174,8 @@ final class AppStore {
         var done = w
         done.status = .done
         let others = visibleWorkouts.filter { $0.id != w.id }
-        let streakAfter = Motivation.streak(others + [done], today: max(today, w.date)).current
+        let streakAfter = Motivation.streak(others + [done], today: max(today, w.date), schedule: settings.sortedSchedule,
+                                            breaks: settings.breaks).current
         return StickerContext(isPRDay: PRDetector.isPRDay(w, history: others, calendar: calendar), streakAfterWorkout: streakAfter)
     }
 
@@ -268,6 +276,97 @@ final class AppStore {
             upsert([PlannedWorkout(date: date, status: status, source: "manual", sync: SyncStamp(createdAt: now))])
         }
         Task { await ensurePlan(for: nextPlanDate(after: today)) }
+    }
+
+    /// Migration: imported history never has stickers (only picks on the
+    /// Finish screen do). Clears any that slipped onto imported workouts.
+    private func clearImportedStickers() {
+        let stray = workouts.filter { $0.source == "import" && $0.sticker != nil }
+        guard !stray.isEmpty else { return }
+        upsert(stray.map { var w = $0; w.sticker = nil; return w })
+        Log.store.info("cleared \(stray.count, privacy: .public) imported stickers")
+    }
+
+    // MARK: Missed, sick, skipped, moved
+
+    /// Journal: mark a missed day as a sick day (excused).
+    func markSick(_ date: LocalDate) { setStatus(.excused, on: date) }
+
+    /// Journal: turn a sick day (or any non-done day) back into a miss.
+    func markMissed(_ date: LocalDate) { setStatus(.skipped, on: date) }
+
+    /// Journal: a long missed stretch becomes a planned break.
+    func addBreak(label: String, from: LocalDate, to: LocalDate) {
+        var s = settings
+        s.breaks.append(TrainingBreak(label: label, from: from, to: to))
+        updateSettings(s)
+    }
+
+    func removeBreak(_ id: UUID) {
+        var s = settings
+        s.breaks.removeAll { $0.id == id }
+        updateSettings(s)
+    }
+
+    enum TodayChange: Equatable { case sick, skipped, moved(LocalDate) }
+
+    /// How today was changed with "can't make it today?" (undoable today).
+    var todayChange: TodayChange? {
+        let t = today
+        let records = visibleWorkouts.filter { $0.date == t }
+        if let marker = records.first(where: { $0.source == "moved" }),
+           let moved = visibleWorkouts.first(where: { $0.id.uuidString == marker.reasons.first?.text }) {
+            return .moved(moved.date)
+        }
+        if records.contains(where: { $0.status == .excused }) { return .sick }
+        if records.contains(where: { $0.status == .skipped && !$0.sections.isEmpty }) { return .skipped }
+        return nil
+    }
+
+    /// The next free, non-training day later this week (for "move to …").
+    var moveTarget: LocalDate? {
+        let t = today
+        guard let w = workout(on: t), w.status == .planned, !w.sections.isEmpty else { return nil }
+        let end = t.startOfWeek.adding(days: 6)
+        var d = t.adding(days: 1)
+        while d <= end {
+            if !settings.sortedSchedule.contains(d.weekday), workout(on: d) == nil { return d }
+            d = d.adding(days: 1)
+        }
+        return nil
+    }
+
+    func sickToday() { changeToday(.excused) }
+    func skipToday() { changeToday(.skipped) }
+
+    private func changeToday(_ status: WorkoutStatus) {
+        guard let w = workout(on: today), w.status == .planned else { return }
+        mutate(w.id) { $0.status = status }
+    }
+
+    /// Shifts today's workout to a free day later this week; today keeps a
+    /// small marker so it isn't planned again.
+    func moveToday() {
+        guard let target = moveTarget, let w = workout(on: today) else { return }
+        mutate(w.id) { $0.date = target }
+        upsert([PlannedWorkout(date: today, status: .skipped,
+                               reasons: [PlanReason(section: nil, rule: "moved", text: w.id.uuidString)],
+                               source: "moved", sync: SyncStamp(createdAt: now))])
+    }
+
+    /// Undo today's sick / skip / move (only for today).
+    func undoTodayChange() {
+        let t = today
+        for r in visibleWorkouts where r.date == t {
+            if r.source == "moved" {
+                if let id = UUID(uuidString: r.reasons.first?.text ?? ""), workout(id: id) != nil {
+                    mutate(id) { $0.date = t }
+                }
+                mutate(r.id) { $0.sync.deletedAt = now }
+            } else if r.status == .excused || r.status == .skipped {
+                if r.sections.isEmpty { mutate(r.id) { $0.sync.deletedAt = now } } else { mutate(r.id) { $0.status = .planned } }
+            }
+        }
     }
 
     // MARK: Settings, goals, benchmarks

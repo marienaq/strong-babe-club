@@ -239,3 +239,120 @@ final class TimerSoundTests: XCTestCase {
         XCTAssertEqual(Set(haptics).count, TimerCue.allCases.count)
     }
 }
+
+/// Round 4: misses, sick days, breaks, today's options, stickers.
+@MainActor
+final class MissedAndStickerTests: XCTestCase {
+    let monday = Date(timeIntervalSince1970: 1_792_414_800) // Mon Oct 19 2026
+
+    func makeStore(_ data: StoredData = StoredData()) -> AppStore {
+        let store = AppStore(repository: InMemoryRepository(data), clock: { self.monday })
+        store.load()
+        return store
+    }
+
+    /// Imported done days on every Mon/Wed/Fri in [from, to].
+    func imported(_ from: LocalDate, _ to: LocalDate) -> [PlannedWorkout] {
+        var out: [PlannedWorkout] = []
+        var d = from
+        while d <= to {
+            if [.monday, .wednesday, .friday].contains(d.weekday) {
+                out.append(PlannedWorkout(date: d, status: .done, source: "import"))
+            }
+            d = d.adding(days: 1)
+        }
+        return out
+    }
+
+    func testSummerGapCountsAsMissedUntilMarkedAsBreak() {
+        let history = imported(LocalDate(2026, 6, 1), LocalDate(2026, 7, 3)) + imported(LocalDate(2026, 8, 3), LocalDate(2026, 10, 16))
+        let store = makeStore(StoredData(workouts: history))
+        XCTAssertEqual(store.streak.current, 33, "since Aug 3")
+        XCTAssertEqual(store.streak.best, 33)
+        let gap = try! XCTUnwrap(store.missedEntries.first)
+        XCTAssertTrue(gap.isGroup)
+        XCTAssertEqual(gap.label, "missed 4 weeks · Jul 6 – Jul 31")
+        store.addBreak(label: "Spain", from: gap.from, to: gap.to)
+        XCTAssertTrue(store.missedEntries.isEmpty)
+        XCTAssertEqual(store.streak.current, 15 + 33)
+        store.removeBreak(store.settings.breaks[0].id)
+        XCTAssertEqual(store.streak.current, 33)
+    }
+
+    func testMissedDayToSickDayAndBack() {
+        var history = imported(LocalDate(2026, 9, 7), LocalDate(2026, 10, 16))
+        history.removeAll { $0.date == LocalDate(2026, 10, 7) }
+        let store = makeStore(StoredData(workouts: history))
+        XCTAssertEqual(store.missedEntries.map(\.label), ["missed · Wed Oct 7"])
+        XCTAssertEqual(store.streak.current, 3)
+        store.markSick(LocalDate(2026, 10, 7))
+        XCTAssertTrue(store.missedEntries.isEmpty)
+        XCTAssertEqual(store.streak.current, 17)
+        store.markMissed(LocalDate(2026, 10, 7))
+        XCTAssertEqual(store.missedEntries.map(\.label), ["missed · Wed Oct 7"])
+        XCTAssertEqual(store.streak.current, 3)
+    }
+
+    func testTodaySickSkipMoveAndUndo() async throws {
+        let store = makeStore()
+        await store.prepare()
+        let w = try XCTUnwrap(store.workout(on: store.today))
+        XCTAssertNil(store.todayChange)
+
+        store.sickToday()
+        XCTAssertEqual(store.todayChange, .sick)
+        XCTAssertEqual(store.workout(id: w.id)?.status, .excused)
+        store.undoTodayChange()
+        XCTAssertNil(store.todayChange)
+        XCTAssertEqual(store.workout(id: w.id)?.status, .planned)
+
+        store.skipToday()
+        XCTAssertEqual(store.todayChange, .skipped)
+        store.undoTodayChange()
+        XCTAssertEqual(store.workout(id: w.id)?.status, .planned)
+
+        // Mon -> Tue (the next non-training day this week).
+        XCTAssertEqual(store.moveTarget, LocalDate(2026, 10, 20))
+        store.moveToday()
+        XCTAssertEqual(store.todayChange, .moved(LocalDate(2026, 10, 20)))
+        XCTAssertEqual(store.workout(id: w.id)?.date, LocalDate(2026, 10, 20))
+        XCTAssertNil(store.moveTarget, "nothing left to move today")
+        store.undoTodayChange()
+        XCTAssertNil(store.todayChange)
+        XCTAssertEqual(store.workout(id: w.id)?.date, store.today)
+        XCTAssertEqual(store.visibleWorkouts.filter { $0.date == store.today }.count, 1, "marker removed")
+    }
+
+    func testMoveOnlyWithinTheWeekToAFreeDay() async throws {
+        let sundayClock = Date(timeIntervalSince1970: 1_792_414_800 + 6 * 86_400) // Sun Oct 25
+        var s = PlannerSettings.default
+        s.schedule = [.sunday]
+        let store = AppStore(repository: InMemoryRepository(StoredData(settings: s)), clock: { sundayClock })
+        store.load()
+        await store.prepare()
+        XCTAssertNotNil(store.workout(on: store.today))
+        XCTAssertNil(store.moveTarget, "Sunday is the last day of the week")
+    }
+
+    func testImportedStickersAreClearedOnLoad() {
+        var w = PlannedWorkout(date: LocalDate(2026, 9, 7), status: .done, sticker: .barbell, source: "import")
+        w.sync = SyncStamp(createdAt: monday)
+        let mine = PlannedWorkout(date: LocalDate(2026, 9, 9), status: .done, sticker: .bear, source: "rules-v1")
+        let repo = InMemoryRepository(StoredData(workouts: [w, mine]))
+        let store = AppStore(repository: repo, clock: { self.monday })
+        store.load()
+        XCTAssertNil(store.workout(id: w.id)?.sticker)
+        XCTAssertNil(try repo.load().workouts.first { $0.id == w.id }?.sticker, "persisted")
+        XCTAssertEqual(store.workout(id: mine.id)?.sticker, .bear)
+        XCTAssertEqual(store.stickerSlots.first, .sticker(.bear, date: LocalDate(2026, 9, 9)))
+    }
+
+    func testImportedHistoryLeavesStickerPageEmpty() async throws {
+        let store = makeStore(StoredData(workouts: imported(LocalDate(2026, 8, 3), LocalDate(2026, 10, 16))))
+        await store.prepare()
+        let slots = store.stickerSlots
+        XCTAssertEqual(slots.count, 12)
+        XCTAssertEqual(slots.first, .today)
+        XCTAssertEqual(slots.dropFirst().filter { $0 == .empty }.count, 11)
+    }
+}

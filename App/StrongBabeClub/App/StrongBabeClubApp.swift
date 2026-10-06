@@ -46,6 +46,12 @@ struct StrongBabeClubApp: App {
                     store.load()
                     await store.prepare()
                     if let format = DebugRoute.metabolicFormat { await store.debugForceMetabolic(format) }
+                    switch DebugRoute.todayAction {
+                    case "sick": store.sickToday()
+                    case "skip": store.skipToday()
+                    case "move": store.moveToday()
+                    default: break
+                    }
                 }
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active { Task { await store.prepare() } }

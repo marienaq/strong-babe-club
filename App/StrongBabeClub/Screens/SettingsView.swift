@@ -67,6 +67,8 @@ struct SettingsView: View {
                     DatePicker("First test week", selection: dateBinding(\.testWeekStart), displayedComponents: .date)
                     NavigationLink("Training maxes") { TrainingMaxView() }
                     NavigationLink("Benchmarks (\(store.benchmarks.filter(\.active).count) active)") { BenchmarksView() }
+                    NavigationLink("Breaks (\(store.settings.breaks.count))") { BreaksView() }
+                        .accessibilityIdentifier("breaksLink")
                 }
                 Section {
                     Button("Import history or backup (JSON)…") { showImporter = true }
@@ -262,5 +264,66 @@ struct BenchmarksView: View {
             }
         }
         .navigationTitle("Benchmarks")
+    }
+}
+
+/// Planned breaks (vacations): scheduled days inside are excused, so they
+/// neither break nor extend the streak. Nothing is added automatically.
+@MainActor
+struct BreaksView: View {
+    @Environment(AppStore.self) private var store
+    @State private var label = ""
+    @State private var from = Date()
+    @State private var to = Date().addingTimeInterval(7 * 86_400)
+
+    var body: some View {
+        JournalPage {
+            Text("breaks").bodyText(32, .heavy).padding(.top, 8).accessibilityAddTraits(.isHeader)
+            Text("Planned time off: days inside a break don't count against your streak or your 30-day %.")
+                .bodyText(14, .semibold, color: Palette.muted)
+            if store.settings.breaks.isEmpty {
+                Text.caveat("no breaks yet").hand(20, color: Palette.muted)
+            }
+            ForEach(Array(store.settings.breaks.enumerated()), id: \.element.id) { i, b in
+                PaperCard(rotation: i % 2 == 0 ? -0.8 : 0.8, tape: WashiTape.forKind(.cooldown, width: 50, angle: i % 2 == 0 ? -4 : 4)) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text.caveat(b.label).hand(22)
+                            Text("\(b.from.shortDisplay) – \(b.to.shortDisplay)").bodyText(13, .semibold, color: Palette.muted)
+                        }
+                        Spacer()
+                        Button(role: .destructive) { store.removeBreak(b.id) } label: {
+                            Image(systemName: "xmark.circle.fill").font(.system(size: 22)).foregroundStyle(Palette.faint)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Remove \(b.label)")
+                    }
+                }
+            }
+            PaperCard(rotation: 0.6, tape: WashiTape(color: Palette.sunny, stripe: Palette.sunnyLight, width: 60, angle: -3)) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text.caveat("add a break").hand(22, color: Palette.tangerineDeep)
+                    TextField("label, e.g. holiday", text: $label)
+                        .font(Typeface.hand(20, .regular))
+                        .padding(.vertical, 4)
+                        .overlay(alignment: .bottom) { Rectangle().fill(Palette.inputLine).frame(height: 2) }
+                        .accessibilityIdentifier("breakLabel")
+                    DatePicker("from", selection: $from, displayedComponents: .date).font(Typeface.hand(19))
+                    DatePicker("to", selection: $to, in: from..., displayedComponents: .date).font(Typeface.hand(19))
+                    Button {
+                        store.addBreak(label: label, from: LocalDate.today(from), to: LocalDate.today(to))
+                        label = ""
+                    } label: {
+                        Text("add break").bodyText(16, .heavy)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .background(RoundedRectangle(cornerRadius: 20).fill(Palette.mint))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("addBreak")
+                }
+            }
+        }
+        .navigationTitle("Breaks")
+        .inlineNavigationTitle()
     }
 }

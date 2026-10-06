@@ -11,6 +11,9 @@ import Foundation
 ///   -sbc-metabolic tabata|interval|amrap_with_rest|for_time|emom|amrap
 ///   -sbc-scroll-bottom         scroll the page to the end
 ///   -sbc-expand                open "view history" panels
+///   -sbc-scroll-to ID          scroll the page to a view id (e.g. missedGroup)
+///   -sbc-open cantmake|missedgroup   open the today / journal dialogs
+///   -sbc-today sick|skip|move  (test mode) apply a today option
 ///
 /// Test mode (`-ui-testing`) uses a FIXED date (Mon Oct 19 2026), sample data
 /// in memory only, and its own preferences; a "test mode" badge is shown.
@@ -43,9 +46,13 @@ enum DebugRoute {
     static var section: String? { value("-sbc-section", navigation: true) }
     static var scrollBottom: Bool { flag("-sbc-scroll-bottom", navigation: true) }
     static var expandHistory: Bool { flag("-sbc-expand", navigation: true) }
+    /// Scroll a page to the view with this id (e.g. missedGroup).
+    static var scrollTarget: String? { value("-sbc-scroll-to", navigation: true) }
     // State-changing hooks: test mode only.
     static var metabolicFormat: String? { value("-sbc-metabolic") }
     static var empty: Bool { flag("-sbc-empty") }
+    /// Apply a "can't make it today" option: sick | skip | move.
+    static var todayAction: String? { value("-sbc-today") }
 }
 
 /// Preferences store: the real one normally, a throwaway suite in test mode.

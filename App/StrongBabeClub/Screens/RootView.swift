@@ -62,9 +62,13 @@ struct JournalPage<Content: View>: View {
             .contentMargins(.bottom, 24, for: .scrollContent)
             .background { PaperBackground() }
             .task {
-                guard DebugRoute.scrollBottom else { return }
+                guard DebugRoute.scrollBottom || DebugRoute.scrollTarget != nil else { return }
                 try? await Task.sleep(nanoseconds: 1_200_000_000)
-                proxy.scrollTo("page-bottom", anchor: .bottom)
+                if let target = DebugRoute.scrollTarget {
+                    proxy.scrollTo(target, anchor: .center)
+                } else {
+                    proxy.scrollTo("page-bottom", anchor: .bottom)
+                }
             }
         }
     }

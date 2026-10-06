@@ -16,8 +16,10 @@ struct TodayView: View {
             stickerPage
             statCards
             if store.todayIsDone { doneForToday }
+            if let change = store.todayChange { TodayChangeCard(change: change) }
             if let workout {
                 startButton(workout)
+                if workout.date == store.today, store.todayChange == nil { CantMakeIt() }
                 if let note = workout.coachNote { KettleNote(note: note) }
                 todaysList(workout)
             } else if store.isPlanning {
@@ -85,8 +87,8 @@ struct TodayView: View {
                         StickerSlotView(slot: slot, index: i)
                     }
                 }
-                if slots.isEmpty {
-                    Text("Finish a workout to stick your first sticker!").hand(18, .semibold, color: Palette.muted)
+                if !slots.contains(where: { if case .sticker = $0 { return true }; return false }) {
+                    Text("Finish a workout and pick your first sticker!").hand(18, .semibold, color: Palette.muted)
                 }
             }
         }
@@ -254,4 +256,98 @@ struct KettleNote: View {
 
 extension String {
     var capitalizedFirst: String { prefix(1).uppercased() + dropFirst() }
+}
+
+/// "can't make it today?" under Let's lift!: sick, skip, or move.
+@MainActor
+struct CantMakeIt: View {
+    @Environment(AppStore.self) private var store
+    @State private var asking = DebugRoute.open == "cantmake"
+
+    var body: some View {
+        Button { asking = true } label: {
+            Text.caveat("can't make it today?").hand(19, color: Palette.muted)
+                .underline(pattern: .dot, color: Palette.dashed)
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .accessibilityIdentifier("cantMakeIt")
+        .confirmationDialog("Can't make it today?", isPresented: $asking, titleVisibility: .visible) {
+            Button("I'm sick") { store.sickToday() }
+            Button("Skip today") { store.skipToday() }
+            if let target = store.moveTarget {
+                Button("Move to \(target.weekday.rawValue.capitalized)") { store.moveToday() }
+            }
+            Button("Never mind") {}
+        } message: {
+            Text("Sick days don't count against you. A skip is just a missed day. You can undo either today.")
+        }
+    }
+}
+
+/// Today after "can't make it": a soft note with undo.
+@MainActor
+struct TodayChangeCard: View {
+    let change: AppStore.TodayChange
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        PaperCard(rotation: 0.8, tape: WashiTape(color: Palette.bubblegum, stripe: Palette.bubblegumLight, width: 60, angle: -3)) {
+            HStack(alignment: .center, spacing: 12) {
+                if change == .sick {
+                    HeartShape().fill(Palette.bubblegum)
+                        .overlay(HeartShape().stroke(Palette.ink, lineWidth: 2))
+                        .frame(width: 34, height: 30)
+                        .accessibilityHidden(true)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text.caveat(title).hand(24, color: Palette.berry)
+                    Text(detail).bodyText(14, .semibold)
+                }
+                Spacer(minLength: 0)
+                Button { store.undoTodayChange() } label: {
+                    Text.caveat("undo").hand(20, color: Palette.muted)
+                        .padding(.horizontal, 12).frame(minHeight: 34)
+                        .overlay(Capsule().strokeBorder(Palette.dashed, style: StrokeStyle(lineWidth: 1.5, dash: [3, 3])))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("undoToday")
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("todayChange")
+    }
+
+    var title: String {
+        switch change {
+        case .sick: return "rest up"
+        case .skipped: return "skipped today"
+        case .moved(let d): return "moved to \(d.weekday.rawValue)"
+        }
+    }
+
+    var detail: String {
+        switch change {
+        case .sick: return "A sick day doesn't touch your streak. Feel better soon."
+        case .skipped: return "That's okay. It's logged as missed, and the next one is ready."
+        case .moved(let d): return "Your workout waits for \(d.weekday.rawValue.capitalized). The week stays whole."
+        }
+    }
+}
+
+/// A drawn heart (no emoji).
+struct HeartShape: Shape {
+    func path(in r: CGRect) -> Path {
+        var p = Path()
+        let w = r.width, h = r.height
+        p.move(to: CGPoint(x: r.midX, y: r.maxY))
+        p.addCurve(to: CGPoint(x: r.minX, y: r.minY + h * 0.3), control1: CGPoint(x: r.minX + w * 0.1, y: r.minY + h * 0.75),
+                   control2: CGPoint(x: r.minX, y: r.minY + h * 0.5))
+        p.addArc(center: CGPoint(x: r.minX + w * 0.25, y: r.minY + h * 0.3), radius: w * 0.25, startAngle: .degrees(180), endAngle: .degrees(0), clockwise: false)
+        p.addArc(center: CGPoint(x: r.minX + w * 0.75, y: r.minY + h * 0.3), radius: w * 0.25, startAngle: .degrees(180), endAngle: .degrees(0), clockwise: false)
+        p.addCurve(to: CGPoint(x: r.midX, y: r.maxY), control1: CGPoint(x: r.maxX, y: r.minY + h * 0.5),
+                   control2: CGPoint(x: r.maxX - w * 0.1, y: r.minY + h * 0.75))
+        p.closeSubpath()
+        return p
+    }
 }

@@ -205,16 +205,14 @@ struct StickerSlotView: View {
             switch slot {
             case .sticker(let id, _):
                 StickerView(id: id, size: 40)
-            case .done:
-                StickerView(id: .barbell, size: 40)
-            case .excused:
-                placeholder(Text("sick\nday"), color: Palette.muted).opacity(0.65)
-                    .accessibilityLabel("Sick day, excused")
-            case .missed:
-                placeholder(Text("missed"), color: Palette.faint).opacity(0.5)
-                    .accessibilityLabel("Missed workout")
+            case .empty:
+                Circle()
+                    .strokeBorder(Palette.dashed, style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
+                    .frame(width: 40, height: 40)
+                    .accessibilityLabel("Empty sticker spot")
             case .today:
                 placeholder(Text("today?"), color: Palette.tangerineActive)
+                    .pulse()
                     .accessibilityLabel("Today's sticker, not earned yet")
             }
         }

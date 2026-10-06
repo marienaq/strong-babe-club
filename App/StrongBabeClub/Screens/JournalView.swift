@@ -6,10 +6,32 @@ import WorkoutCore
 struct JournalView: View {
     @Environment(AppStore.self) private var store
     @State private var selected: PlannedWorkout?
+    @State private var missedChoice: MissedEntry?
+    @State private var sickChoice: PlannedWorkout?
+
+    /// Workouts, sick days and missed days, newest first.
+    enum Item: Identifiable {
+        case workout(PlannedWorkout)
+        case missed(MissedEntry)
+
+        var id: String {
+            switch self {
+            case .workout(let w): return w.id.uuidString
+            case .missed(let m): return "missed-" + m.id
+            }
+        }
+        var date: LocalDate {
+            switch self {
+            case .workout(let w): return w.date
+            case .missed(let m): return m.to
+            }
+        }
+    }
 
     var body: some View {
-        let done = store.visibleWorkouts.filter { $0.status == .done || $0.status == .excused }.reversed()
-        let groups = Dictionary(grouping: done) { $0.date.year * 100 + $0.date.month }
+        let kept = store.visibleWorkouts.filter { $0.status == .done || $0.status == .excused }.map(Item.workout)
+        let items = (kept + store.missedEntries.map(Item.missed)).sorted { $0.date > $1.date }
+        let groups = Dictionary(grouping: items) { $0.date.year * 100 + $0.date.month }
         let keys = groups.keys.sorted(by: >)
         JournalPage {
             HStack(alignment: .bottom) {
@@ -30,20 +52,74 @@ struct JournalView: View {
             ForEach(keys, id: \.self) { key in
                 let entries = groups[key] ?? []
                 Text(entries.first?.date.longMonthName ?? "").hand(26, color: Palette.tangerineDeep)
-                ForEach(Array(entries.enumerated()), id: \.element.id) { i, w in
-                    Button { selected = w } label: { JournalEntry(workout: w, index: i) }
-                        .buttonStyle(.plain)
-                        .contextMenu {
-                            if w.status == .done {
-                                Button("Mark as sick day (excused)") { store.setStatus(.excused, on: w.date) }
-                            } else {
-                                Button("Mark as done") { store.setStatus(.done, on: w.date) }
+                ForEach(Array(entries.enumerated()), id: \.element.id) { i, item in
+                    switch item {
+                    case .missed(let m):
+                        Button { missedChoice = m } label: { MissedRow(entry: m, index: i) }
+                            .buttonStyle(.plain)
+                            .id(m.isGroup ? "missedGroup-\(m.id)" : m.id)
+                            .accessibilityIdentifier(m.isGroup ? "missedGroup" : "missedDay")
+                    case .workout(let w):
+                        Button {
+                            if w.status == .excused && w.sections.isEmpty { sickChoice = w } else { selected = w }
+                        } label: { JournalEntry(workout: w, index: i) }
+                            .buttonStyle(.plain)
+                            .contextMenu {
+                                if w.status == .done {
+                                    Button("Mark as sick day") { store.markSick(w.date) }
+                                } else {
+                                    Button("Switch back to missed") { store.markMissed(w.date) }
+                                }
                             }
-                        }
+                    }
                 }
             }
         }
         .sheet(item: $selected) { w in WorkoutDetailView(workout: w) }
+        .task {
+            guard DebugRoute.open == "missedgroup" else { return }
+            try? await Task.sleep(nanoseconds: 1_800_000_000)
+            missedChoice = store.missedEntries.first { $0.isGroup }
+        }
+        .confirmationDialog(missedChoice.map { $0.label } ?? "", isPresented: Binding(get: { missedChoice != nil }, set: { if !$0 { missedChoice = nil } }),
+                            titleVisibility: .visible, presenting: missedChoice) { m in
+            if m.isGroup {
+                Button("Mark as a break") { store.addBreak(label: "break", from: m.from, to: m.to) }
+            } else {
+                Button("Mark as sick day") { store.markSick(m.from) }
+            }
+            // A plain button: popover-style dialogs hide cancel-role buttons.
+            Button("Keep as missed") {}
+        } message: { m in
+            Text(m.isGroup ? "A break is planned time off: it won't count against your streak." : "Sick days are excused and don't break your streak.")
+        }
+        .confirmationDialog("Sick day", isPresented: Binding(get: { sickChoice != nil }, set: { if !$0 { sickChoice = nil } }),
+                            titleVisibility: .visible, presenting: sickChoice) { w in
+            Button("Switch back to missed") { store.markMissed(w.date) }
+            Button("Keep as sick day") {}
+        }
+    }
+}
+
+/// A faded entry for scheduled days that passed without a workout.
+struct MissedRow: View {
+    var entry: MissedEntry
+    var index: Int
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Circle().strokeBorder(Palette.dashed, style: StrokeStyle(lineWidth: 1.5, dash: [3, 3])).frame(width: 14, height: 14)
+            Text.caveat(entry.label).hand(19, .regular, color: Palette.muted)
+            Spacer(minLength: 0)
+            Text(entry.isGroup ? "break?" : "sick?").bodyText(11, .bold, color: Palette.faint)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 6).strokeBorder(Palette.dashed, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])))
+        .opacity(0.8)
+        .rotationEffect(.degrees(index % 2 == 0 ? -0.4 : 0.4))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(entry.label)
+        .accessibilityHint(entry.isGroup ? "Mark as a break or keep as missed" : "Mark as sick day or keep as missed")
     }
 }
 
@@ -67,7 +143,7 @@ struct JournalEntry: View {
             .frame(width: 42)
             VStack(alignment: .leading, spacing: 2) {
                 if w.status == .excused {
-                    Text("sick day · excused").bodyText(16, .heavy, color: Palette.muted)
+                    Text("sick day").bodyText(16, .heavy, color: Palette.muted)
                 } else {
                     (Text(w.mainLift?.displayName ?? w.strengthSection?.items.first?.movementName ?? "Workout") + Text(top.map { " · top \(formatPounds($0))" } ?? "").foregroundColor(Palette.muted))
                         .bodyText(16, .heavy)
@@ -78,6 +154,12 @@ struct JournalEntry: View {
                     }
                     if let note = w.feedback?.notes, !note.isEmpty {
                         Text(note).hand(19, .semibold, color: Palette.note).lineLimit(2)
+                    }
+                    if w.source == "import" {
+                        Text("from coach's sheet").bodyText(10, .bold, color: Palette.faint)
+                            .padding(.horizontal, 6).padding(.vertical, 1)
+                            .overlay(Capsule().strokeBorder(Palette.dot, lineWidth: 1))
+                            .padding(.top, 2)
                     }
                 }
             }
