@@ -10,15 +10,15 @@ final class HistoryImporterTests: XCTestCase {
 
     func testFixtureImport() throws {
         let r = try importFixture()
-        XCTAssertEqual(r.workouts.count, 5)
-        XCTAssertEqual(r.total, 8)
+        XCTAssertEqual(r.workouts.count, 7)
+        XCTAssertEqual(r.total, 10)
         XCTAssertEqual(r.skipped, 3) // future placeholder + invalid date + wrong type
         XCTAssertEqual(r.skippedReasons, ["future-dated placeholder": 1, "record with an invalid date": 1, "invalid record": 1])
-        XCTAssertEqual(r.summary(), "Imported 5 of 8 workouts (skipped 3: 1 future-dated placeholder, 1 invalid record, 1 record with an invalid date).")
-        XCTAssertEqual(r.summary(imported: 2, alreadyPresent: 3),
-                       "Imported 2 of 8 workouts (skipped 3: 1 future-dated placeholder, 1 invalid record, 1 record with an invalid date; 3 already in your journal).")
-        XCTAssertEqual(r.workouts.map(\.date.iso), ["2025-03-03", "2025-03-05", "2025-03-07", "2025-03-10", "2025-03-12"])
-        XCTAssertEqual(r.workouts.map(\.status), [.done, .done, .excused, .done, .done])
+        XCTAssertEqual(r.summary(), "Imported 7 of 10 workouts: 4 done, 1 sick day, 2 not logged → missed (skipped 3: 1 future-dated placeholder, 1 invalid record, 1 record with an invalid date).")
+        XCTAssertEqual(r.summary(imported: 2, alreadyPresent: 5),
+                       "Imported 2 of 10 workouts: 4 done, 1 sick day, 2 not logged → missed (skipped 3: 1 future-dated placeholder, 1 invalid record, 1 record with an invalid date; 5 already in your journal).")
+        XCTAssertEqual(r.workouts.map(\.date.iso), ["2025-03-03", "2025-03-05", "2025-03-07", "2025-03-10", "2025-03-12", "2025-03-19", "2025-03-21"])
+        XCTAssertEqual(r.workouts.map(\.status), [.done, .done, .excused, .done, .done, .skipped, .skipped])
         XCTAssertTrue(r.issues.contains { $0.message.contains("future-dated") })
         XCTAssertTrue(r.workouts.allSatisfy { $0.source == "import" })
     }
@@ -130,8 +130,27 @@ final class HistoryImporterTests: XCTestCase {
     }
 
     func testSummaryWithoutSkips() throws {
-        let json = "[{\"date\": \"2025-01-06\", \"sections\": [{\"kind\": \"warmup\", \"items\": []}]}]"
-        XCTAssertEqual(try importer.importCoachHistory(Data(json.utf8)).summary(), "Imported 1 of 1 workouts.")
+        let json = "[{\"date\": \"2025-01-06\", \"sections\": [{\"kind\": \"warmup\", \"athlete_note\": \"felt good\", \"items\": []}]}]"
+        XCTAssertEqual(try importer.importCoachHistory(Data(json.utf8)).summary(), "Imported 1 of 1 workouts: 1 done.")
+    }
+
+    /// Coach-programmed days the athlete never logged are missed, not done,
+    /// and keep their programmed content.
+    func testUnloggedDaysAreMissed() throws {
+        let r = try importFixture()
+        let unlogged = try XCTUnwrap(r.workouts.first { $0.date == LocalDate(2025, 3, 19) })
+        XCTAssertEqual(unlogged.status, .skipped)
+        XCTAssertEqual(unlogged.strengthSection?.items.first?.movementName, "Deadlift", "programmed content kept")
+        let copied = try XCTUnwrap(r.workouts.first { $0.date == LocalDate(2025, 3, 21) })
+        XCTAssertEqual(copied.status, .skipped, "a copied note alone isn't a log")
+        XCTAssertEqual(copied.strengthSection?.items.first?.setLogs, [])
+        XCTAssertEqual(r.doneCount, 4)
+        XCTAssertEqual(r.notLoggedCount, 2)
+        XCTAssertEqual(r.sickCount, 1)
+        // Missed imported days show up as missed in the log, not as done.
+        let missed = MissedLog.days(r.workouts, today: LocalDate(2025, 3, 24), schedule: [.monday, .wednesday, .friday])
+        XCTAssertTrue(missed.contains(LocalDate(2025, 3, 19)))
+        XCTAssertTrue(missed.contains(LocalDate(2025, 3, 21)))
     }
 
     func testOffProgramOnlyEntriesAreSkippedWithReason() throws {

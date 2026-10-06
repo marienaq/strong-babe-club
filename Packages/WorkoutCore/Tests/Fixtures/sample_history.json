@@ -166,5 +166,38 @@
   {
     "date": "2025-03-17",
     "sections": "this should be a list"
+  },
+  {
+    "date": "2025-03-19",
+    "weekday": "Wed",
+    "source_tab": "Sample Week 3",
+    "sections": [
+      {
+        "kind": "strength",
+        "raw": "Every 2 Min. For 10 Min: A: 5 Deadlifts",
+        "coach_note": "increase weight each set",
+        "athlete_note": null,
+        "format": {"type": "every_n_min", "interval_min": 2, "duration_min": 10, "rounds": 5},
+        "items": [{"letter": "A", "reps": 5, "movement": "Deadlift", "movement_raw": "Deadlifts"}],
+        "logged_weights_lb": null
+      }
+    ]
+  },
+  {
+    "date": "2025-03-21",
+    "weekday": "Fri",
+    "source_tab": "Sample Week 3",
+    "sections": [
+      {
+        "kind": "strength",
+        "raw": "Every 2 Min. For 10 Min: A: 5 Push Press",
+        "coach_note": null,
+        "athlete_note": "40, 50, 60, 70, 80",
+        "format": {"type": "every_n_min", "interval_min": 2, "duration_min": 10, "rounds": 5},
+        "items": [{"letter": "A", "reps": 5, "movement": "Push Press", "movement_raw": "Push Press"}],
+        "logged_weights_lb": [40, 50, 60, 70, 80],
+        "athlete_note_duplicate_of_previous_week": true
+      }
+    ]
   }
 ]

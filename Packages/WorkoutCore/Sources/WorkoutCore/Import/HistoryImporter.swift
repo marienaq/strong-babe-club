@@ -10,10 +10,19 @@ public struct ImportResult: Sendable {
     /// Total records in the file.
     public var total: Int = 0
 
-    /// "Imported 372 of 376 workouts (skipped 4: 2 future-dated placeholders, 2 with no usable sections)."
+    public var doneCount: Int { workouts.filter { $0.status == .done }.count }
+    public var notLoggedCount: Int { workouts.filter { $0.status == .skipped }.count }
+    public var sickCount: Int { workouts.filter { $0.status == .excused }.count }
+
+    /// "Imported 372 of 376 workouts: 309 done, 6 sick days, 57 not logged → missed
+    /// (skipped 4: 2 future-dated placeholders, 2 with no usable sections)."
     public func summary(imported: Int? = nil, alreadyPresent: Int = 0) -> String {
         let n = imported ?? workouts.count
         var text = "Imported \(n) of \(total) workouts"
+        var split = ["\(doneCount) done"]
+        if sickCount > 0 { split.append("\(sickCount) sick day\(sickCount == 1 ? "" : "s")") }
+        if notLoggedCount > 0 { split.append("\(notLoggedCount) not logged → missed") }
+        text += ": " + split.joined(separator: ", ")
         var notes: [String] = []
         if skipped > 0 {
             let reasons = skippedReasons.sorted { ($0.value, $1.key) > ($1.value, $0.key) }
@@ -113,7 +122,9 @@ public struct HistoryImporter: Sendable {
             return nil
         }
         let flags = Set(dto.flags ?? [])
-        var status: WorkoutStatus = .done
+        // Done only if the athlete logged something; coach-programmed days
+        // with no log become missed (programmed content kept).
+        var status: WorkoutStatus = Self.hasAthleteLog(dto) ? .done : .skipped
         if flags.contains("athlete_reported_skip_or_sick") { status = .excused }
 
         var sections: [WorkoutSection] = []
@@ -132,6 +143,15 @@ public struct HistoryImporter: Sendable {
         sections.sort { SectionKind.allCases.firstIndex(of: $0.kind)! < SectionKind.allCases.firstIndex(of: $1.kind)! }
         return PlannedWorkout(id: UUID.seeded(&rng), date: date, status: status, sections: sections, source: "import",
                               sync: SyncStamp(createdAt: now))
+    }
+
+    /// An athlete note (not a copy of last week's), logged weights or scores.
+    static func hasAthleteLog(_ dto: WorkoutDTO) -> Bool {
+        (dto.sections ?? []).contains { s in
+            guard s.athleteNoteDuplicate != true else { return false }
+            let note = s.athleteNote?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return !note.isEmpty || !(s.loggedWeightsLb ?? []).isEmpty || !(s.loggedScores ?? []).isEmpty
+        }
     }
 
     static func kind(_ raw: String?) -> SectionKind? {

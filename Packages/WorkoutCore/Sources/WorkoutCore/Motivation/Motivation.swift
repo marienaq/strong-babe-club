@@ -345,7 +345,7 @@ public enum StickerPage {
         let rel = Motivation.relevant(workouts, today: today)
         let todayOpen = rel.contains { $0.date == today && $0.status == .planned && !$0.sections.isEmpty }
         let picked = rel.compactMap { w -> StickerSlot? in
-            guard w.status == .done, w.source != "import", let s = w.sticker else { return nil }
+            guard w.status == .done, !w.source.hasPrefix("import"), let s = w.sticker else { return nil }
             return .sticker(s, date: w.date)
         }
         var out = Array(picked.suffix(max(0, count - (todayOpen ? 1 : 0))))
