@@ -224,7 +224,7 @@ public struct RulesWorkoutPlanner: WorkoutPlanner {
                                                 input: StrengthAdjustmentInput(), rampStart: (lastTop ?? tm) * 0.5)
                 if let lastTop {
                     ctx.reason(.strength, "test.ramp_from_history",
-                               "\(lift.displayName) warm-up sets start at 50% of your last top set (\(formatPounds(lastTop)) \(WeightUnit.current.symbol)).")
+                               "\(lift.displayName) warm-up sets start at 50% of your last heaviest set (\(formatPounds(lastTop)) \(WeightUnit.current.symbol)).")
                 }
                 if i == 0 { tmUsed = plan.trainingMax }
                 items.append(SectionItem(id: UUID.seeded(&rng), letter: i == 0 ? "A" : "B", movementID: lift.movementID,

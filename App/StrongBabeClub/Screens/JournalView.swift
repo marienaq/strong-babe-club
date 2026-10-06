@@ -137,7 +137,8 @@ struct JournalEntry: View {
         let w = workout
         let energy = w.feedback?.energy
         let tape = energy == .sleepy ? Palette.sky : energy == .okay ? Palette.sunny : Palette.tangerine
-        let top = w.strengthSection?.items.compactMap(\.topLoggedWeight).max()
+        // Heaviest logged set (weight, and reps when known).
+        let heaviest = w.strengthSection?.items.flatMap(\.setLogs).max { ($0.weight, $0.reps) < ($1.weight, $1.reps) }
         let isPR = !PRDetector.strengthPRs(in: w, history: store.visibleWorkouts).isEmpty
         HStack(alignment: .top, spacing: 12) {
             VStack(spacing: 0) {
@@ -149,7 +150,7 @@ struct JournalEntry: View {
                 if w.status == .excused {
                     Text("sick day").bodyText(16, .heavy, color: Palette.muted)
                 } else {
-                    (Text(w.mainLift?.displayName ?? w.strengthSection?.items.first?.movementName ?? "Workout") + Text(top.map { " · top \(store.fmt($0))" } ?? "").foregroundColor(Palette.muted))
+                    (Text(w.mainLift?.displayName ?? w.strengthSection?.items.first?.movementName ?? "Workout") + Text(heaviest.map { " · heaviest: \(store.label($0.weight))\($0.reps > 0 ? " × \($0.reps)" : "")" } ?? "").foregroundColor(Palette.muted))
                         .bodyText(16, .heavy)
                     if let m = w.metabolicSection {
                         let scores = m.roundLogs.map { r in r.timeSec.map(formatClock) ?? r.rounds.map { "\($0)+\(r.reps ?? 0)" } ?? "\(r.reps ?? 0)" }

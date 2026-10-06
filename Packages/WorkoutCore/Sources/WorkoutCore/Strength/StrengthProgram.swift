@@ -179,20 +179,20 @@ public enum StrengthPlanner {
                 note("block.percent", "You hit \(formatPounds(lastTop)) last time\(rated). Today tops out at \(formatPounds(top)): \(Int((rx.topFraction * 100).rounded()))% of your \(formatPounds(tm)) \(WeightUnit.current.symbol) training max.")
             }
         } else if rx.phase != .test {
-            note("block.percent", "Top set: \(Int((rx.topFraction * 100).rounded()))% of your \(formatPounds(tm)) \(WeightUnit.current.symbol) training max = \(formatPounds(top)) \(WeightUnit.current.symbol).")
+            note("block.percent", "Heaviest set: \(Int((rx.topFraction * 100).rounded()))% of your \(formatPounds(tm)) \(WeightUnit.current.symbol) training max = \(formatPounds(top)) \(WeightUnit.current.symbol).")
         }
 
         if input.push, rx.phase != .test, rx.phase != .deload {
             top = calculator.step(up: top)
-            note("coach.push", "You've earned a heavier day: +\(formatPounds(calculator.smallestStep)) \(WeightUnit.current.symbol) on the top set.")
+            note("coach.push", "You've earned a heavier day: +\(formatPounds(calculator.smallestStep)) \(WeightUnit.current.symbol) on the heaviest set.")
         }
         if input.capAtLowEnd, top > lowEnd {
             top = lowEnd
-            note("cap.low_end", "Taking it easier today: the top set stays at the low end of the \(rx.phase.displayName) range (\(formatPounds(lowEnd)) \(WeightUnit.current.symbol)).")
+            note("cap.low_end", "Taking it easier today: the heaviest set stays at the low end of the \(rx.phase.displayName) range (\(formatPounds(lowEnd)) \(WeightUnit.current.symbol)).")
         }
         if let joint = input.jointLimit {
             top = min(top, lowEnd)
-            note("limit.\(joint.rawValue)", "Going easy on your \(joint.rawValue): the top set stays at the low end of the range (\(formatPounds(top)) \(WeightUnit.current.symbol)).")
+            note("limit.\(joint.rawValue)", "Going easy on your \(joint.rawValue): the heaviest set stays at the low end of the range (\(formatPounds(top)) \(WeightUnit.current.symbol)).")
         }
 
         let capped = top > calculator.maxLoadable - 0.001 && tm * rx.topFraction > calculator.maxLoadable

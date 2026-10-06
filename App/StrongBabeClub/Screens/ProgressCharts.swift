@@ -66,7 +66,7 @@ struct LiftTimelineChart: View {
                     .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 5]))
             }
             ForEach(points, id: \.date) { p in
-                LineMark(x: .value("Date", chartDate(p.date)), y: .value(metric == .volume ? "Volume" : "Top set", p.value),
+                LineMark(x: .value("Date", chartDate(p.date)), y: .value(metric == .volume ? "Volume" : "Heaviest set", p.value),
                          series: .value("Stretch", p.segment))
                     .foregroundStyle(color)
                     .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
@@ -113,7 +113,7 @@ struct LiftTimelineChart: View {
         .chartXVisibleDomain(length: range == .all ? TimeInterval(full.lowerBound.days(until: full.upperBound)) * 86_400 : visibleSeconds)
         .chartScrollPosition(x: $scrollX)
         .accessibilityIdentifier("chart-timeline")
-        .accessibilityLabel("\(metric == .volume ? "Volume" : "Top set") per session, \(range.label) view")
+        .accessibilityLabel("\(metric == .volume ? "Volume" : "Heaviest set") per session, \(range.label) view")
         .accessibilityValue(latest.map { "latest \(ProgressChart.annotation($0, metric: metric))" } ?? "")
     }
 }
@@ -176,7 +176,7 @@ struct YearOverlayChart: View {
                 }
             }
             .accessibilityIdentifier("chart-years")
-            .accessibilityLabel("\(metric == .volume ? "Volume" : "Top set") by calendar year")
+            .accessibilityLabel("\(metric == .volume ? "Volume" : "Heaviest set") by calendar year")
 
             HStack(spacing: 6) {
                 ForEach(Array(years.enumerated()), id: \.element.year) { i, y in
