@@ -190,9 +190,9 @@ public enum StrengthPlanner {
             top = lowEnd
             note("cap.low_end", "Taking it easier today: the top set stays at the low end of the \(rx.phase.displayName) range (\(formatPounds(lowEnd)) lb).")
         }
-        if let joint = input.jointLimit, top > lowEnd {
-            top = lowEnd
-            note("limit.\(joint.rawValue)", "Going easy on your \(joint.rawValue): top set capped at \(formatPounds(lowEnd)) lb.")
+        if let joint = input.jointLimit {
+            top = min(top, lowEnd)
+            note("limit.\(joint.rawValue)", "Going easy on your \(joint.rawValue): the top set stays at the low end of the range (\(formatPounds(top)) lb).")
         }
 
         let capped = top > calculator.maxLoadable - 0.001 && tm * rx.topFraction > calculator.maxLoadable

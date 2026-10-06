@@ -1,0 +1,170 @@
+[
+  {
+    "date": "2025-03-03",
+    "weekday": "Mon",
+    "source_tab": "Sample Week 1",
+    "sections": [
+      {
+        "kind": "warmup",
+        "raw": "3 Rounds: A: 20 Jumping Jacks / B: 8 Air Squats / C: 6 Push Ups / D: 8 Good Mornings",
+        "coach_note": null,
+        "athlete_note": null,
+        "format": {"type": "rounds", "rounds": 3},
+        "items": [
+          {"letter": "A", "reps": 20, "movement": "Jumping Jack", "movement_raw": "Jumping Jacks"},
+          {"letter": "B", "reps": 8, "movement": "Air Squat", "movement_raw": "Air Squats"},
+          {"letter": "C", "reps": 6, "movement": "Push Up", "movement_raw": "Push Ups"},
+          {"letter": "D", "reps": 8, "movement": "Good Morning", "movement_raw": "Good Mornings"}
+        ]
+      },
+      {
+        "kind": "strength",
+        "raw": "Every 2 Min. For 10 Min: A: 5 Back Squats",
+        "coach_note": "increase weight each set",
+        "athlete_note": "50, 60, 70, 80, 90 felt fine",
+        "format": {"type": "every_n_min", "interval_min": 2, "duration_min": 10, "rounds": 5},
+        "items": [{"letter": "A", "reps": 5, "movement": "Back Squat", "movement_raw": "Back Squats"}],
+        "logged_weights_lb": [50, 60, 70, 80, 90]
+      },
+      {
+        "kind": "metabolic",
+        "raw": "4 Total Rounds: (AMRAP in 3 min): A: 5 KB Swings / B: 4 Push Ups / C: 6 Sit Ups (REST 1 MIN. AFTER EACH ROUND)",
+        "coach_note": "A = 26lb",
+        "athlete_note": "3+2, 3+4, 3, 3+1",
+        "format": {"type": "amrap", "rounds": 4, "duration_min": 3, "rest_between_rounds_sec": 60},
+        "items": [
+          {"letter": "A", "reps": 5, "movement": "KB Swing", "movement_raw": "KB Swings", "weight_lb": 26},
+          {"letter": "B", "reps": 4, "movement": "Push Up", "movement_raw": "Push Ups"},
+          {"letter": "C", "reps": 6, "movement": "Sit Up", "movement_raw": "Sit Ups"}
+        ],
+        "logged_scores": ["3+2", "3+4", "3", "3 + 1"]
+      },
+      {
+        "kind": "accessory",
+        "raw": "15-15-15 V-Ups",
+        "coach_note": null,
+        "athlete_note": null,
+        "format": {"type": "sets", "sets": 3},
+        "items": [{"letter": "A", "reps_scheme": "15-15-15", "movement": "V-Up", "movement_raw": "V-Ups"}]
+      }
+    ]
+  },
+  {
+    "date": "2025-03-05",
+    "weekday": "Wed",
+    "source_tab": "Sample Week 1",
+    "sections": [
+      {
+        "kind": "strength",
+        "raw": "Every 2 Min. For 10 Min: A: 5 Deadlifts",
+        "coach_note": null,
+        "athlete_note": "65, 85, 105, 125, 140",
+        "format": {"type": "every_n_min", "interval_min": 2, "duration_min": 10, "rounds": 5},
+        "items": [{"letter": "A", "reps": 5, "movement": "Deadlift", "movement_raw": "Deadlifts"}],
+        "logged_weights_lb": [65, 85, 105, 125, 140]
+      },
+      {
+        "kind": "metabolic",
+        "raw": "21-15-9 For Time: A: Burpees / B: Air Squats",
+        "coach_note": null,
+        "athlete_note": "12:41",
+        "format": {"type": "for_time", "reps_scheme": "21-15-9", "ladder": "descending"},
+        "items": [
+          {"letter": "A", "reps_scheme": "21-15-9", "movement": "Burpee", "movement_raw": "Burpees"},
+          {"letter": "B", "reps_scheme": "21-15-9", "movement": "Air Squat", "movement_raw": "Air Squats"}
+        ],
+        "logged_scores": ["12:41"]
+      }
+    ]
+  },
+  {
+    "date": "2025-03-07",
+    "weekday": "Fri",
+    "source_tab": "Sample Week 1",
+    "flags": ["athlete_reported_skip_or_sick"],
+    "sections": [
+      {
+        "kind": "strength",
+        "raw": "Every 2 Min. For 10 Min: A: 5 Push Press",
+        "coach_note": null,
+        "athlete_note": "sick today, skipped",
+        "format": {"type": "every_n_min", "interval_min": 2, "duration_min": 10, "rounds": 5},
+        "items": [{"letter": "A", "reps": 5, "movement": "Push Press", "movement_raw": "Push Press"}],
+        "logged_weights_lb": null,
+        "athlete_reported_skip": true
+      }
+    ]
+  },
+  {
+    "date": "2025-03-10",
+    "weekday": "Mon",
+    "source_tab": "Sample Week 2",
+    "sections": [
+      {
+        "kind": "strength",
+        "raw": "Every 2 Min. For 10 Min: A: 5 Front Squats",
+        "coach_note": null,
+        "athlete_note": "45, 55, 65, 75, 9999",
+        "format": {"type": "every_n_min", "interval_min": 2, "duration_min": 10, "rounds": 5},
+        "items": [{"letter": "A", "reps": 5, "movement": "Front Squat", "movement_raw": "Front Squats"}],
+        "logged_weights_lb": [45, 55, 65, 75, 9999]
+      },
+      {
+        "kind": "metabolic",
+        "raw": "AMRAP in 12 Min: A: 10 Air Squats / B: 8 Push Ups",
+        "coach_note": null,
+        "athlete_note": "7 rounds",
+        "format": {"type": "amrap", "duration_min": 12},
+        "items": [
+          {"letter": "A", "reps": 10, "movement": "Air Squat", "movement_raw": "Air Squats"},
+          {"letter": "B", "reps": 8, "movement": "Push Up", "movement_raw": "Push Ups"}
+        ],
+        "logged_scores": ["7", "15.3"]
+      }
+    ]
+  },
+  {
+    "date": "2025-03-12",
+    "weekday": "Wed",
+    "source_tab": "Sample Week 2",
+    "sections": [
+      {
+        "kind": "strength",
+        "raw": "Every 2 Min. For 10 Min: A: 3 Hang Power Cleans",
+        "coach_note": null,
+        "athlete_note": "35, 45, 55, 60, 65",
+        "format": {"type": "every_n_min", "interval_min": 2, "duration_min": 10, "rounds": 5},
+        "items": [{"letter": "A", "reps": 3, "movement": "Hang Power Clean", "movement_raw": "Hang Power Cleans"}],
+        "logged_weights_lb": [35, 45, 55, 60, 65]
+      }
+    ]
+  },
+  {
+    "date": "2025-03-14",
+    "weekday": "Fri",
+    "source_tab": "Sample Week 2",
+    "flags": ["future_date", "athlete_note_copied_from_previous_week"],
+    "sections": [
+      {
+        "kind": "strength",
+        "raw": "Every 2 Min. For 10 Min: A: 3 Push Jerks",
+        "coach_note": null,
+        "athlete_note": "35, 45, 55, 60, 65",
+        "format": {"type": "every_n_min", "interval_min": 2, "duration_min": 10, "rounds": 5},
+        "items": [{"letter": "A", "reps": 3, "movement": "Push Jerk", "movement_raw": "Push Jerks"}],
+        "logged_weights_lb": [35, 45, 55, 60, 65],
+        "athlete_note_duplicate_of_previous_week": true
+      }
+    ]
+  },
+  {
+    "date": "2025-02-30",
+    "weekday": "Sun",
+    "source_tab": "Sample Broken",
+    "sections": []
+  },
+  {
+    "date": "2025-03-17",
+    "sections": "this should be a list"
+  }
+]
