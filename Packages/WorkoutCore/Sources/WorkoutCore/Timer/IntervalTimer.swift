@@ -44,13 +44,12 @@ public struct IntervalPlan: Hashable, Sendable {
     public static func forSection(_ s: WorkoutSection) -> IntervalPlan? {
         switch s.format {
         case .everyNMin, .emom:
-            let sets = s.format == .emom ? (s.durationMin ?? s.rounds ?? 12) : (s.items.map(\.plannedSets.count).max() ?? s.rounds ?? 6)
+            let sets = s.format == .emom ? s.prescribedRounds : (s.items.map(\.plannedSets.count).max() ?? s.rounds ?? 6)
             return .everyInterval(seconds: s.intervalSec ?? 120, sets: sets)
         case .tabata:
-            // Tabata rounds are per move: 8 × 20/10 for each move in turn.
-            return .workRest(rounds: (s.rounds ?? 8) * max(1, s.items.count), work: s.workSec ?? 20, rest: s.restSec ?? 10)
+            return .workRest(rounds: s.prescribedRounds, work: s.workSec ?? 20, rest: s.restSec ?? 10)
         case .amrapWithRest, .interval:
-            return .workRest(rounds: s.rounds ?? 1, work: s.workSec ?? 60, rest: s.restSec ?? 0)
+            return .workRest(rounds: s.prescribedRounds, work: s.workSec ?? 60, rest: s.restSec ?? 0)
         case .amrap, .forTime:
             return .workRest(rounds: 1, work: (s.durationMin ?? 12) * 60, rest: 0)
         default:
@@ -88,6 +87,38 @@ public struct IntervalPlan: Hashable, Sendable {
         var out = phaseStarts.enumerated().filter { $0.element > from && $0.element <= to }.map(\.offset)
         if from < totalDuration && to >= totalDuration { out.append(phases.count) }
         return out
+    }
+}
+
+/// What the timer should sound like at a transition.
+public enum TimerCue: String, Sendable, CaseIterable {
+    /// First work phase starts (or work after rest): "go".
+    case workStart = "work"
+    /// Bell (round over), then the rest tone.
+    case roundEndRest = "bell_rest"
+    /// Bell (round over), then straight into the next work round (EMOM).
+    case roundEndWork = "bell_work"
+    /// Final bell: all rounds done.
+    case finished = "finish"
+
+    /// Bundled sound file name (see scripts/make-sounds.py).
+    public var soundFile: String { "\(rawValue).wav" }
+}
+
+extension IntervalPlan {
+    /// Cue for entering phase `index` (`phases.count` = finished).
+    public func cue(enteringPhase index: Int) -> TimerCue? {
+        guard index >= 0 else { return nil }
+        if index >= phases.count { return phases.isEmpty ? nil : .finished }
+        let p = phases[index]
+        guard index > 0 else { return p.kind == .work ? .workStart : nil }
+        let prev = phases[index - 1]
+        switch (prev.kind, p.kind) {
+        case (.work, .rest): return .roundEndRest
+        case (.work, .work): return .roundEndWork
+        case (.rest, .work): return .workStart
+        case (.rest, .rest): return nil
+        }
     }
 }
 

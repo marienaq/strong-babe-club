@@ -40,7 +40,7 @@ public struct MetabolicTemplate: Hashable, Sendable {
         case .forTime:
             return "\(repsScheme ?? "21-15-9") for time · cap \(durationMin ?? 15) min"
         case .tabata:
-            return "Tabata: \(rounds) × 20 s work / 10 s rest per move"
+            return "Tabata: \(rounds) rounds per move · 20 s work / 10 s rest, alternating moves"
         case .emom:
             return "Every minute for \(durationMin ?? 12) min · alternate the moves"
         default:

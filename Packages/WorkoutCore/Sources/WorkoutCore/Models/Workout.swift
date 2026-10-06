@@ -65,6 +65,17 @@ public enum SectionFormat: String, Codable, Sendable, CaseIterable {
         }
     }
 
+    /// Friendly name for lists ("tabata", "for time").
+    public var displayName: String {
+        switch self {
+        case .amrap, .amrapWithRest: return "amrap"
+        case .forTime: return "for time"
+        case .everyNMin, .emom: return "emom"
+        case .setsGoingUp: return "sets"
+        default: return rawValue
+        }
+    }
+
     /// Whether a lower score is better (for-time pieces).
     public var lowerIsBetter: Bool { self == .forTime }
 }
@@ -210,18 +221,50 @@ public struct WorkoutSection: Codable, Hashable, Sendable, Identifiable {
     /// Reps in one full round (used to turn rounds+reps into total reps).
     public var repsPerRound: Int { items.compactMap(\.reps).reduce(0, +) }
 
-    /// Short summary for the Today list ("3 rounds", "6 × 5", "amrap", "planks").
-    public var shortSummary: String {
+    /// Rounds the athlete logs, matching the prescription and the timer:
+    /// interval / AMRAP-with-rest rounds, Tabata rounds × moves, one row per
+    /// EMOM minute, one row per ladder rung, one row for a single AMRAP.
+    public var prescribedRounds: Int {
+        switch format {
+        case .tabata: return max(1, (rounds ?? 8) * max(1, items.count))
+        case .interval, .amrapWithRest: return max(1, rounds ?? 1)
+        case .emom: return max(1, durationMin ?? rounds ?? 1)
+        case .forTime, .ladder:
+            let scheme = items.compactMap(\.repsScheme).first
+            let rungs = scheme.map { $0.split(separator: "-").count } ?? 1
+            return max(1, min(rungs, 20))
+        case .amrap: return 1
+        default: return max(1, rounds ?? 1)
+        }
+    }
+
+    /// Short summary for the Today list ("3 rounds", "6 × 5", "amrap").
+    public var shortSummary: String { todayDetail(compact: true) }
+
+    /// Grey detail text on the Today list. `compact: false` names the lift
+    /// ("6 × 3 Front Squat"); compact drops what can go ("Front Squat").
+    public func todayDetail(compact: Bool) -> String {
         switch kind {
-        case .warmup: return "\(rounds ?? 3) rounds"
+        case .warmup:
+            let r = "\(rounds ?? 3) rounds"
+            return compact ? r : r + (items.first.map { " · " + $0.movementName.lowercased() + " +\(max(0, items.count - 1))" } ?? "")
         case .strength:
+            let names = items.map(\.movementName).joined(separator: " + ")
+            if items.count > 1 { return names }
             if let sets = items.first?.plannedSets, let first = sets.first {
                 let allSame = sets.allSatisfy { $0.reps == first.reps }
-                return allSame ? "\(sets.count) × \(first.reps)" : "\(sets.count) sets"
+                let scheme = allSame ? "\(sets.count) × \(first.reps)" : "\(sets.count) sets"
+                return compact ? names : "\(scheme) \(names)"
             }
-            return format.rawValue
-        case .metabolic: return format.nameStructure
-        case .cooldown: return items.first.map { $0.movementName.lowercased() } ?? "core + stretch"
+            return names
+        case .metabolic:
+            let label = format.displayName
+            let minutes = WorkoutDuration.estimate(self)
+            if compact { return label }
+            return benchmarkID != nil ? "\(label) · benchmark" : "\(label) · \(minutes) min"
+        case .cooldown:
+            let core = items.first.map { $0.movementName.lowercased() } ?? "core"
+            return compact || items.count < 2 ? core : core + " + stretch"
         }
     }
 }
