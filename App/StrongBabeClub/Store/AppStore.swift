@@ -271,7 +271,11 @@ final class AppStore {
 
     func setStatus(_ status: WorkoutStatus, on date: LocalDate) {
         if let w = workout(on: date) {
-            mutate(w.id) { $0.status = status }
+            mutate(w.id) {
+                $0.status = status
+                // The owner's decision on an imported day survives re-imports.
+                if $0.source == "import" { $0.source = "import-edited" }
+            }
         } else {
             upsert([PlannedWorkout(date: date, status: status, source: "manual", sync: SyncStamp(createdAt: now))])
         }
@@ -281,7 +285,7 @@ final class AppStore {
     /// Migration: imported history never has stickers (only picks on the
     /// Finish screen do). Clears any that slipped onto imported workouts.
     private func clearImportedStickers() {
-        let stray = workouts.filter { $0.source == "import" && $0.sticker != nil }
+        let stray = workouts.filter { $0.source.hasPrefix("import") && $0.sticker != nil }
         guard !stray.isEmpty else { return }
         upsert(stray.map { var w = $0; w.sticker = nil; return w })
         Log.store.info("cleared \(stray.count, privacy: .public) imported stickers")
@@ -291,6 +295,17 @@ final class AppStore {
 
     /// Journal: mark a missed day as a sick day (excused).
     func markSick(_ date: LocalDate) { setStatus(.excused, on: date) }
+
+    /// Journal: an imported day that was done but never logged in the sheet.
+    /// Marked done with no sticker.
+    func markDoneUnlogged(_ date: LocalDate) {
+        guard let w = workout(on: date) else { return }
+        mutate(w.id) {
+            $0.status = .done
+            $0.sticker = nil
+            if $0.source == "import" { $0.source = "import-edited" }
+        }
+    }
 
     /// Journal: turn a sick day (or any non-done day) back into a miss.
     func markMissed(_ date: LocalDate) { setStatus(.skipped, on: date) }
@@ -436,9 +451,13 @@ final class AppStore {
             }.value
             // Days logged in the app win; earlier imports are replaced (re-importing
             // a newer file fixes or updates them).
-            let appLogged = Set(visibleWorkouts.filter { $0.source != "import" && ($0.status == .done || $0.status == .excused) }.map(\.date))
+            let appLogged = Set(visibleWorkouts.filter {
+                $0.source == "import-edited" || ($0.source != "import" && ($0.status == .done || $0.status == .excused))
+            }.map(\.date))
             let fresh = result.workouts.filter { !appLogged.contains($0.date) }
             let freshDates = Set(fresh.map(\.date))
+            // Statuses of earlier imported days are refreshed; days the owner
+            // edited ("import-edited") or logged in the app are kept.
             let replaced = visibleWorkouts.filter { $0.source == "import" && freshDates.contains($0.date) }
             importProgress = (0, fresh.count)
             defer { importProgress = nil }

@@ -57,7 +57,7 @@ struct JournalView: View {
                     case .missed(let m):
                         Button { missedChoice = m } label: { MissedRow(entry: m, index: i) }
                             .buttonStyle(.plain)
-                            .id(m.isGroup ? "missedGroup-\(m.id)" : m.id)
+                            .id(m.isGroup && m.id == store.missedEntries.last(where: \.isGroup)?.id ? "missedGroup-latest" : m.id)
                             .accessibilityIdentifier(m.isGroup ? "missedGroup" : "missedDay")
                     case .workout(let w):
                         Button {
@@ -86,6 +86,10 @@ struct JournalView: View {
             if m.isGroup {
                 Button("Mark as a break") { store.addBreak(label: "break", from: m.from, to: m.to) }
             } else {
+                if let planned = store.workout(on: m.from), !planned.sections.isEmpty {
+                    Button("I did it, just didn't log it") { store.markDoneUnlogged(m.from) }
+                    Button("See what was planned") { selected = planned }
+                }
                 Button("Mark as sick day") { store.markSick(m.from) }
             }
             // A plain button: popover-style dialogs hide cancel-role buttons.
@@ -155,7 +159,7 @@ struct JournalEntry: View {
                     if let note = w.feedback?.notes, !note.isEmpty {
                         Text(note).hand(19, .semibold, color: Palette.note).lineLimit(2)
                     }
-                    if w.source == "import" {
+                    if w.source.hasPrefix("import") {
                         Text("from coach's sheet").bodyText(10, .bold, color: Palette.faint)
                             .padding(.horizontal, 6).padding(.vertical, 1)
                             .overlay(Capsule().strokeBorder(Palette.dot, lineWidth: 1))

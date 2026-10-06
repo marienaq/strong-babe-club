@@ -86,12 +86,12 @@ final class AppStoreTests: XCTestCase {
         await store.prepare() // TMs start as defaults (no history yet)
         XCTAssertEqual(store.liftPrograms[.deadlift]?.trainingMax, 65)
         let message = try await store.importFile(Data(json.utf8))
-        XCTAssertEqual(message, "Imported 1 of 1 workouts.")
+        XCTAssertEqual(message, "Imported 1 of 1 workouts: 1 done.")
         // Regression: imported history must refresh history-based training maxes.
         XCTAssertEqual(store.liftPrograms[.deadlift]?.trainingMax, 195)
         // Re-importing replaces the earlier import (no duplicates).
         let again = try await store.importFile(Data(json.utf8))
-        XCTAssertEqual(again, "Imported 1 of 1 workouts. 1 earlier imported workouts were updated.")
+        XCTAssertEqual(again, "Imported 1 of 1 workouts: 1 done. 1 earlier imported workouts were updated.")
         XCTAssertEqual(store.visibleWorkouts.filter { $0.source == "import" }.count, 1)
         let backup = try store.exportBackup()
         let other = makeStore()
@@ -120,7 +120,7 @@ final class AppStoreTests: XCTestCase {
         store.finish(workout: w.id, feedback: WorkoutFeedback(), sticker: .bear, minutes: 40)
         let json = "[{\"date\": \"2026-10-19\", \"sections\": [{\"kind\": \"warmup\", \"items\": []}]}]"
         let message = try await store.importFile(Data(json.utf8))
-        XCTAssertEqual(message, "Imported 0 of 1 workouts (1 already in your journal).")
+        XCTAssertEqual(message, "Imported 0 of 1 workouts: 0 done, 1 not logged → missed (1 already in your journal).")
         XCTAssertEqual(store.workout(on: LocalDate(2026, 10, 19))?.sticker, .bear)
     }
 
@@ -128,7 +128,7 @@ final class AppStoreTests: XCTestCase {
     func testFixtureImportFeedsJournalAndProgress() async throws {
         let store = makeStore()
         let message = try await store.importFile(try Self.fixture)
-        XCTAssertTrue(message.hasPrefix("Imported 5 of 8 workouts (skipped 3: "), message)
+        XCTAssertTrue(message.hasPrefix("Imported 7 of 10 workouts: 4 done, 1 sick day, 2 not logged → missed (skipped 3: "), message)
         XCTAssertEqual(store.doneWorkouts.count, 4)
         XCTAssertEqual(ProgressSeries.lift(.deadlift, workouts: store.visibleWorkouts).map(\.topWeight), [140])
         XCTAssertEqual(ProgressSeries.lift(.backSquat, workouts: store.visibleWorkouts).count, 1)
@@ -354,5 +354,48 @@ final class MissedAndStickerTests: XCTestCase {
         XCTAssertEqual(slots.count, 12)
         XCTAssertEqual(slots.first, .today)
         XCTAssertEqual(slots.dropFirst().filter { $0 == .empty }.count, 11)
+    }
+}
+
+/// Round 4b: unlogged imported days are missed; re-import refreshes statuses
+/// but keeps the owner's own decisions.
+@MainActor
+final class UnloggedImportTests: XCTestCase {
+    let monday = Date(timeIntervalSince1970: 1_792_414_800) // Mon Oct 19 2026
+
+    func json(_ days: [(String, Bool)]) -> Data {
+        let rows = days.map { d, logged in
+            "{\"date\": \"\(d)\", \"sections\": [{\"kind\": \"strength\", \"athlete_note\": \(logged ? "\"85, 105\"" : "null"), \"items\": [{\"letter\": \"A\", \"reps\": 5, \"movement\": \"Deadlift\"}], \"logged_weights_lb\": \(logged ? "[85, 105]" : "null")}]}"
+        }
+        return Data(("[" + rows.joined(separator: ",") + "]").utf8)
+    }
+
+    func testUnloggedDayIsMissedAndCanBeConfirmed() async throws {
+        let store = AppStore(repository: InMemoryRepository(), clock: { self.monday })
+        store.load()
+        let msg = try await store.importFile(json([("2026-10-12", true), ("2026-10-14", false), ("2026-10-16", true)]))
+        XCTAssertTrue(msg.hasPrefix("Imported 3 of 3 workouts: 2 done, 1 not logged → missed"), msg)
+        XCTAssertEqual(store.missedEntries.map(\.label), ["missed · Wed Oct 14"])
+        XCTAssertEqual(store.streak.current, 0, "2 of 3 that week resets")
+
+        store.markDoneUnlogged(LocalDate(2026, 10, 14))
+        XCTAssertTrue(store.missedEntries.isEmpty)
+        XCTAssertEqual(store.streak.current, 3)
+        XCTAssertNil(store.workout(on: LocalDate(2026, 10, 14))?.sticker)
+
+        // Re-import keeps the owner's "I did it", one record per day.
+        _ = try await store.importFile(json([("2026-10-12", true), ("2026-10-14", false), ("2026-10-16", true)]))
+        XCTAssertEqual(store.workout(on: LocalDate(2026, 10, 14))?.status, .done)
+        XCTAssertEqual(store.visibleWorkouts.filter { $0.date == LocalDate(2026, 10, 14) }.count, 1)
+    }
+
+    func testReimportRefreshesStatuses() async throws {
+        let store = AppStore(repository: InMemoryRepository(), clock: { self.monday })
+        store.load()
+        _ = try await store.importFile(json([("2026-10-12", true), ("2026-10-14", true)]))
+        XCTAssertEqual(store.workout(on: LocalDate(2026, 10, 14))?.status, .done)
+        _ = try await store.importFile(json([("2026-10-12", true), ("2026-10-14", false)]))
+        XCTAssertEqual(store.workout(on: LocalDate(2026, 10, 14))?.status, .skipped)
+        XCTAssertEqual(store.visibleWorkouts.filter { $0.source.hasPrefix("import") }.count, 2)
     }
 }
