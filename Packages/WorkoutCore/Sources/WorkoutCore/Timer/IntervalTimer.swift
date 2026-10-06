@@ -101,8 +101,23 @@ public enum TimerCue: String, Sendable, CaseIterable {
     /// Final bell: all rounds done.
     case finished = "finish"
 
-    /// Bundled sound file name (see scripts/make-sounds.py).
-    public var soundFile: String { "\(rawValue).wav" }
+    /// Bundled sound file for a pack (see scripts/make-sounds.py).
+    public func soundFile(pack: SoundPack = .boxing) -> String { "\(pack.rawValue)_\(rawValue).wav" }
+}
+
+/// Five synthesized timer sound packs.
+public enum SoundPack: String, Codable, Sendable, CaseIterable {
+    case boxing, arcade, chimes, cowbell, marimba
+
+    public var displayName: String {
+        switch self {
+        case .boxing: return "Boxing gym"
+        case .arcade: return "Arcade"
+        case .chimes: return "Wind chimes"
+        case .cowbell: return "Cowbell"
+        case .marimba: return "Soft marimba"
+        }
+    }
 }
 
 extension IntervalPlan {

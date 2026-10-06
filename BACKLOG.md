@@ -19,10 +19,11 @@ Pick a mascot in Settings (and during onboarding). It acts out every lift.
 - Switching units converts the display without losing precision in stored history.
 - **Done:** weights are stored as canonical pounds; the planner runs in the gym's unit; kg preset is a 20 kg bar with 1.25-20 kg pairs. Switching loads that unit's preset and re-rounds training maxes and goals. Covered by core and app tests.
 
-## 3. Choose between 5 timer sounds (in progress)
+## 3. Choose between 5 timer sounds (done)
 - Five sound packs, each with a matching set: round-end bell, "go" cue and "rest" cue. Idea: boxing gym (current), arcade, wind chimes, cowbell, soft marimba.
 - Settings lets you preview each pack and pick one. The on/off toggle stays.
 - All sounds are self-made or synthesized, so there are no licensing issues.
+- **Done:** boxing gym, arcade, wind chimes, cowbell and soft marimba, synthesized by scripts/make-sounds.py (20 files, 1.3 MB). Settings has a pack picker with preview, and lock-screen notifications use the chosen pack.
 
 ## 4. Music during workouts (needs decision)
 Options, from simplest to richest:

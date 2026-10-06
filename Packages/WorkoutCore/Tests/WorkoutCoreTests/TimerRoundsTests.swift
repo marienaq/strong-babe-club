@@ -88,6 +88,9 @@ final class TimerCueTests: XCTestCase {
     }
 
     func testCuesAreDistinctFiles() {
-        XCTAssertEqual(Set(TimerCue.allCases.map(\.soundFile)).count, TimerCue.allCases.count)
+        let files = SoundPack.allCases.flatMap { p in TimerCue.allCases.map { $0.soundFile(pack: p) } }
+        XCTAssertEqual(Set(files).count, 20)
+        XCTAssertEqual(TimerCue.roundEndRest.soundFile(pack: .arcade), "arcade_bell_rest.wav")
+        XCTAssertEqual(TimerCue.workStart.soundFile(), "boxing_work.wav")
     }
 }

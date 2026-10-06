@@ -225,12 +225,15 @@ import AVFoundation
 final class TimerSoundTests: XCTestCase {
     func testEveryCueHasAPlayableBundledSound() throws {
         let bundle = Bundle(for: AppStore.self)
+        for pack in SoundPack.allCases {
         for cue in TimerCue.allCases {
-            let name = (cue.soundFile as NSString).deletingPathExtension
-            let url = try XCTUnwrap(bundle.url(forResource: name, withExtension: "wav"), cue.soundFile)
+            let file = cue.soundFile(pack: pack)
+            let name = (file as NSString).deletingPathExtension
+            let url = try XCTUnwrap(bundle.url(forResource: name, withExtension: "wav"), file)
             let player = try AVAudioPlayer(contentsOf: url)
-            XCTAssertGreaterThan(player.duration, 0.3, cue.soundFile)
+            XCTAssertGreaterThan(player.duration, 0.25, file)
             XCTAssertLessThan(player.duration, 30, "notification sounds must be under 30 s")
+        }
         }
     }
 

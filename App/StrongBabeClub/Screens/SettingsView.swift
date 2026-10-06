@@ -14,6 +14,7 @@ struct SettingsView: View {
     @State private var message: String?
     @State private var confirmDelete = false
     @AppStorage(TimerSound.defaultsKey) private var timerSounds = true
+    @AppStorage(TimerSound.packKey) private var soundPack: SoundPack = .boxing
 
     var body: some View {
         NavigationStack {
@@ -36,8 +37,33 @@ struct SettingsView: View {
                 Section {
                     Toggle("Timer sounds", isOn: $timerSounds)
                         .accessibilityIdentifier("timerSoundsToggle")
+                    ForEach(SoundPack.allCases, id: \.self) { pack in
+                        HStack {
+                            Button {
+                                soundPack = pack
+                            } label: {
+                                HStack {
+                                    Image(systemName: soundPack == pack ? "checkmark.circle.fill" : "circle")
+                                        .foregroundStyle(soundPack == pack ? Palette.tangerine : Palette.faint)
+                                    Text(pack.displayName).foregroundStyle(Palette.ink)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityAddTraits(soundPack == pack ? .isSelected : [])
+                            Spacer()
+                            Button {
+                                TimerSound.shared.play(.roundEndRest, pack: pack)
+                            } label: {
+                                Label("Preview", systemImage: "play.circle").labelStyle(.iconOnly).font(.title3)
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel("Preview \(pack.displayName)")
+                        }
+                        .disabled(!timerSounds)
+                        .accessibilityIdentifier("pack-\(pack.rawValue)")
+                    }
                 } header: { Text("Timers") } footer: {
-                    Text("A boxing bell when a round ends, a \"go\" beep when work starts and a soft chime for rest. Plays over your music and with the silent switch on. The phone always buzzes too.")
+                    Text("Each pack has a round-over sound, a \"go\" cue for work and a calmer cue for rest. Tap play to preview. Sounds play over your music and with the silent switch on; the phone always buzzes too.")
                 }
                 Section {
                     Toggle("Avoid jumping", isOn: $draft.limits.avoidJumping)

@@ -122,7 +122,7 @@ enum NotificationScheduler {
             content.title = title
             content.body = item.1
             // The matching bundled cue (bell / go / rest); silent when sounds are off.
-            content.sound = TimerSound.enabled ? UNNotificationSound(named: UNNotificationSoundName(item.2.soundFile)) : nil
+            content.sound = TimerSound.enabled ? UNNotificationSound(named: UNNotificationSoundName(item.2.soundFile(pack: TimerSound.pack))) : nil
             let trigger = UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false)
             center.add(UNNotificationRequest(identifier: "\(prefix)\(i)", content: content, trigger: trigger))
         }
@@ -144,13 +144,24 @@ final class TimerSound {
 
     /// Settings toggle (on by default).
     nonisolated static var enabled: Bool { AppDefaults.store.object(forKey: defaultsKey) as? Bool ?? true }
+    nonisolated static let packKey = "timerSoundPack"
+    /// Chosen pack (Settings); boxing by default.
+    nonisolated static var pack: SoundPack {
+        AppDefaults.store.string(forKey: packKey).flatMap(SoundPack.init(rawValue:)) ?? .boxing
+    }
 
-    private var players: [TimerCue: AVAudioPlayer] = [:]
+    private var players: [String: AVAudioPlayer] = [:]
     private var release: Task<Void, Never>?
 
     func play(_ cue: TimerCue) {
         Haptics.play(Self.haptic(for: cue))
-        guard Self.enabled, let player = player(for: cue) else { return }
+        guard Self.enabled else { return }
+        play(cue, pack: Self.pack)
+    }
+
+    /// Plays a cue from a specific pack (Settings preview), even if muted.
+    func play(_ cue: TimerCue, pack: SoundPack) {
+        guard let player = player(for: cue, pack: pack) else { return }
         #if os(iOS)
         let session = AVAudioSession.sharedInstance()
         do {
@@ -184,16 +195,17 @@ final class TimerSound {
         }
     }
 
-    private func player(for cue: TimerCue) -> AVAudioPlayer? {
-        if let p = players[cue] { return p }
-        let name = (cue.soundFile as NSString).deletingPathExtension
+    private func player(for cue: TimerCue, pack: SoundPack) -> AVAudioPlayer? {
+        let file = cue.soundFile(pack: pack)
+        if let p = players[file] { return p }
+        let name = (file as NSString).deletingPathExtension
         guard let url = Bundle.main.url(forResource: name, withExtension: "wav"),
               let p = try? AVAudioPlayer(contentsOf: url) else {
             Log.timer.error("missing sound \(cue.rawValue, privacy: .public)")
             return nil
         }
         p.prepareToPlay()
-        players[cue] = p
+        players[file] = p
         return p
     }
 }
