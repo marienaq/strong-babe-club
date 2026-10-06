@@ -137,11 +137,14 @@ public struct PlannerSettings: Codable, Hashable, Sendable {
     public var testWeekStart: LocalDate
     /// Mondays of weeks that are swapped to a deload (e.g. holidays).
     public var deloadWeeks: [LocalDate]
+    /// Planned breaks (vacations): scheduled days inside are excused.
+    public var breaks: [TrainingBreak]
 
     public init(displayName: String = "", schedule: [Weekday] = [.monday, .wednesday, .friday],
                 equipment: EquipmentInventory = .homeGym, limits: TrainingLimits = TrainingLimits(),
                 targetMinutes: Int = 50, rotationAnchor: LocalDate = LocalDate(2026, 9, 28),
-                testWeekStart: LocalDate = LocalDate(2026, 10, 12), deloadWeeks: [LocalDate] = []) {
+                testWeekStart: LocalDate = LocalDate(2026, 10, 12), deloadWeeks: [LocalDate] = [],
+                breaks: [TrainingBreak] = []) {
         self.displayName = displayName
         self.schedule = schedule
         self.equipment = equipment
@@ -150,6 +153,26 @@ public struct PlannerSettings: Codable, Hashable, Sendable {
         self.rotationAnchor = rotationAnchor
         self.testWeekStart = testWeekStart
         self.deloadWeeks = deloadWeeks
+        self.breaks = breaks
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case displayName, schedule, equipment, limits, targetMinutes, rotationAnchor, testWeekStart, deloadWeeks, breaks
+    }
+
+    /// Tolerant: settings saved by older versions (no `breaks`, ...) still load.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = PlannerSettings()
+        displayName = try c.decodeIfPresent(String.self, forKey: .displayName) ?? d.displayName
+        schedule = try c.decodeIfPresent([Weekday].self, forKey: .schedule) ?? d.schedule
+        equipment = try c.decodeIfPresent(EquipmentInventory.self, forKey: .equipment) ?? d.equipment
+        limits = try c.decodeIfPresent(TrainingLimits.self, forKey: .limits) ?? d.limits
+        targetMinutes = try c.decodeIfPresent(Int.self, forKey: .targetMinutes) ?? d.targetMinutes
+        rotationAnchor = try c.decodeIfPresent(LocalDate.self, forKey: .rotationAnchor) ?? d.rotationAnchor
+        testWeekStart = try c.decodeIfPresent(LocalDate.self, forKey: .testWeekStart) ?? d.testWeekStart
+        deloadWeeks = try c.decodeIfPresent([LocalDate].self, forKey: .deloadWeeks) ?? d.deloadWeeks
+        breaks = try c.decodeIfPresent([TrainingBreak].self, forKey: .breaks) ?? []
     }
 
     public static let `default` = PlannerSettings()
@@ -179,6 +202,7 @@ public struct PlannerSettings: Codable, Hashable, Sendable {
         c.rotationAnchor = rotationAnchor.startOfWeek
         c.testWeekStart = testWeekStart.startOfWeek
         c.deloadWeeks = Array(Set(deloadWeeks.map(\.startOfWeek))).sorted().suffix(52)
+        c.breaks = Array(breaks.map { $0.sanitized() }.sorted { $0.from < $1.from }.prefix(50))
         return c
     }
 }

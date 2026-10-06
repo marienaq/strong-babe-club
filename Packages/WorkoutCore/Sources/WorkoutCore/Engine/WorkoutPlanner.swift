@@ -123,7 +123,8 @@ public struct RulesWorkoutPlanner: WorkoutPlanner {
             self.trainingMaxes = TrainingMax.resolve(programs: request.trainingMaxes, history: history,
                                                     barWeight: settings.equipment.barWeight)
             let lift = position.isTestWeek ? rotation.testLifts(for: request.date).0 : rotation.lift(for: request.date)
-            self.coachNote = CoachNoteSelector.select(history: history, today: request.date, todaysLift: lift)
+            self.coachNote = CoachNoteSelector.select(history: history, today: request.date, todaysLift: lift,
+                                                      schedule: settings.sortedSchedule, breaks: settings.breaks)
         }
 
         mutating func reason(_ section: SectionKind?, _ rule: String, _ text: String) {
