@@ -436,7 +436,7 @@ struct LiftsView: View {
                 }
             }
         }
-        .environment(\.editMode, .constant(.active))
+        .alwaysEditing()
         .navigationTitle("Main lifts")
     }
 }

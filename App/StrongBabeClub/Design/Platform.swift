@@ -19,6 +19,15 @@ extension View {
         #endif
     }
 
+    /// Lists show reorder handles (iOS edit mode).
+    @ViewBuilder func alwaysEditing() -> some View {
+        #if os(iOS)
+        self.environment(\.editMode, .constant(.active))
+        #else
+        self
+        #endif
+    }
+
     @ViewBuilder func inlineNavigationTitle() -> some View {
         #if os(iOS)
         self.navigationBarTitleDisplayMode(.inline)
