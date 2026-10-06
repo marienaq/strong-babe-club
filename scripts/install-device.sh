@@ -17,9 +17,9 @@ fi
 source .signing.local
 : "${DEVELOPMENT_TEAM:?DEVELOPMENT_TEAM not set in .signing.local}"
 
-DEVICE_ID="${DEVICE_ID:-$(xcrun devicectl list devices 2>/dev/null | grep -E 'connected' | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' | head -1)}"
+DEVICE_ID="${DEVICE_ID:-$(xcrun devicectl list devices 2>/dev/null | grep -E 'iPhone' | grep -E 'connected|available' | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' | head -1)}"
 if [[ -z "$DEVICE_ID" ]]; then
-  echo "No connected iPhone found. Plug it in, unlock it, and trust this Mac." >&2
+  echo "No paired iPhone found. Plug it in (or be on the same Wi-Fi), unlock it, and trust this Mac." >&2
   exit 1
 fi
 
