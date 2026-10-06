@@ -161,3 +161,44 @@ public enum ProgressSeries {
         return (top, logs.reduce(0) { $0 + $1.weight * Double($1.reps) })
     }
 }
+
+/// Recent sessions for the "view history" panels.
+public enum RecentHistory {
+    /// The last `limit` completed sessions of a lift before `date`, newest
+    /// first. Includes imported history and sets logged in the app.
+    public static func liftSessions(_ lift: Lift, before date: LocalDate, in workouts: [PlannedWorkout], limit: Int = 3) -> [LiftSession] {
+        Array(LiftHistory.sessions(of: lift, in: workouts.filter { $0.date < date }).suffix(max(0, limit)).reversed())
+    }
+
+    public struct MetabolicEntry: Hashable, Sendable {
+        public enum Match: Sendable { case sameWorkout, sameFormat }
+        public var date: LocalDate
+        public var name: String
+        public var format: SectionFormat
+        public var roundLogs: [RoundLog]
+        public var score: MetabolicScore
+        public var match: Match
+    }
+
+    /// Past scores for the same workout (benchmark id or name) or, failing
+    /// that, the same format. Newest first; only sessions with a score.
+    public static func metabolic(for section: WorkoutSection, before date: LocalDate, in workouts: [PlannedWorkout],
+                                 limit: Int = 3) -> [MetabolicEntry] {
+        let past = workouts.filter { $0.date < date && $0.status == .done && !$0.isDeleted }.sorted { $0.date > $1.date }
+        func entries(_ match: MetabolicEntry.Match, _ pick: (WorkoutSection) -> Bool) -> [MetabolicEntry] {
+            past.compactMap { w -> MetabolicEntry? in
+                guard let s = w.sections.first(where: { $0.kind == .metabolic && pick($0) }),
+                      let score = MetabolicScore.from(s.roundLogs, format: s.format) else { return nil }
+                return MetabolicEntry(date: w.date, name: s.name ?? s.format.displayName, format: s.format,
+                                      roundLogs: s.roundLogs, score: score, match: match)
+            }
+        }
+        let same = entries(.sameWorkout) { s in
+            if let id = section.benchmarkID, s.benchmarkID == id { return true }
+            if let n = section.name, s.name == n { return true }
+            return false
+        }
+        if !same.isEmpty { return Array(same.prefix(limit)) }
+        return Array(entries(.sameFormat) { $0.format == section.format }.prefix(limit))
+    }
+}

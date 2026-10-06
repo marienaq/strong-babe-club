@@ -99,6 +99,19 @@ public struct ProgramCalendar: Hashable, Sendable {
         return s...s.adding(days: ProgramCalendar.blockLengthWeeks * 7 - 1)
     }
 
+    /// User-facing block context: "test week", "block 1 · week 3 · volume",
+    /// or "test week starts Oct 12" before the program begins.
+    public func contextLabel(on date: LocalDate) -> String {
+        let p = position(on: date)
+        switch p.phase {
+        case .preProgram: return "test week starts \(testWeekStart.shortMonthName) \(testWeekStart.day)"
+        case .test: return p.block == 0 ? "test week" : "block \(p.block) · test week"
+        default:
+            let phase = p.isDeloadOverride ? "deload (swapped)" : p.phase.displayName
+            return "block \(p.block) · week \(p.week) · \(phase)"
+        }
+    }
+
     public func position(on date: LocalDate) -> BlockPosition {
         if date < testWeekStart { return BlockPosition(block: 0, week: 0, phase: .preProgram) }
         if date < block1Start { return BlockPosition(block: 0, week: 13, phase: .test) }

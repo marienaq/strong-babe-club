@@ -222,7 +222,7 @@ public struct RulesWorkoutPlanner: WorkoutPlanner {
         }
 
         var lift = ctx.rotation.lift(for: date)
-        ctx.reason(.strength, "rotation.week", "Week \(week.rawValue): \(lift.slot.displayName) day, so it's \(lift.displayName).")
+        ctx.reason(.strength, "rotation.week", "It's your \(lift.slot.displayName) day in the two-week rotation, so it's \(lift.displayName).")
 
         // Never repeat the same main lift within 7 days.
         let recentLifts = Set(ctx.history.filter { $0.date >= date.adding(days: -6) && $0.status == .done }.compactMap(\.mainLift))

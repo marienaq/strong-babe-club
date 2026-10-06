@@ -62,7 +62,7 @@ final class PlannerTests: XCTestCase {
         let sets = try XCTUnwrap(s.items.first?.plannedSets)
         XCTAssertEqual(sets.map(\.reps), [5, 5, 5, 5, 5, 5])
         XCTAssertEqual(sets.last?.weight, 95) // 75% of 125 = 93.75 -> 95
-        XCTAssertTrue(w.reasons(for: .strength).contains { $0.text.contains("Week B") })
+        XCTAssertTrue(w.reasons(for: .strength).contains { $0.rule == "rotation.week" && $0.text.contains("squat day") })
         XCTAssertEqual(s.trainingMax, 125)
     }
 
