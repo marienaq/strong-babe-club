@@ -1,0 +1,102 @@
+# XcodeGen spec for the Strong Babe Club iOS app.
+# Generate the (git-ignored) Xcode project with:  xcodegen generate
+name: StrongBabeClub
+options:
+  bundleIdPrefix: com.marienaq
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Set your own team locally (Xcode > Signing & Capabilities); never commit secrets.
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEAD_CODE_STRIPPING: YES
+    SWIFT_STRICT_CONCURRENCY: minimal
+packages:
+  WorkoutCore:
+    path: Packages/WorkoutCore
+targets:
+  StrongBabeClub:
+    type: application
+    platform: iOS
+    sources:
+      - path: App/StrongBabeClub
+        excludes:
+          - "**/*.md"
+      - path: App/StrongBabeClub/Resources/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    dependencies:
+      - package: WorkoutCore
+    entitlements:
+      path: App/StrongBabeClub/Resources/StrongBabeClub.entitlements
+      properties:
+        # Every file the app creates defaults to NSFileProtectionComplete.
+        com.apple.developer.default-data-protection: NSFileProtectionComplete
+    info:
+      path: App/StrongBabeClub/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: Strong Babe Club
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        UILaunchScreen:
+          UIColorName: ""
+        UIAppFonts:
+          - Caveat-Variable.ttf
+          - Nunito-Variable.ttf
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIApplicationSupportsIndirectInputEvents: true
+        ITSAppUsesNonExemptEncryption: false
+        # No network use at all; App Transport Security stays at its secure defaults
+        # (no NSAppTransportSecurity exceptions). No usage-description keys are
+        # needed: local notifications ask permission at runtime, and the file
+        # importer/exporter use system pickers.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.marienaq.strongbabeclub
+        PRODUCT_NAME: StrongBabeClub
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: NO
+  StrongBabeClubTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - App/StrongBabeClubTests
+    dependencies:
+      - target: StrongBabeClub
+      - package: WorkoutCore
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.marienaq.strongbabeclub.tests
+  StrongBabeClubUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - App/StrongBabeClubUITests
+    dependencies:
+      - target: StrongBabeClub
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.marienaq.strongbabeclub.uitests
+        TEST_TARGET_NAME: StrongBabeClub
+schemes:
+  StrongBabeClub:
+    build:
+      targets:
+        StrongBabeClub: all
+    test:
+      gatherCoverageData: true
+      coverageTargets:
+        - StrongBabeClub
+      targets:
+        - StrongBabeClubTests
+        - StrongBabeClubUITests
