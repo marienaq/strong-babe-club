@@ -1,148 +1,281 @@
 import SwiftUI
 import WorkoutCore
 
-/// The line-art bear that acts out the day's lift. One animation per lift,
-/// all driven by a single 2.6 s loop; frozen in the start pose under
+/// The line-art bear that acts out the day's lift: one animation per lift,
+/// driven by a 2.6 s loop over a tiny 2D skeleton (knee and elbow solved
+/// with two-bone IK). Chunky outlined limbs. Frozen in the start pose under
 /// Reduce Motion.
 struct BearView: View {
     var lift: Lift
     var size: CGFloat = 112
     var fill: Color = Palette.paper
+    /// Fixed animation phase (0...1) for galleries/previews; nil = animate.
+    var frozenAt: Double?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    static let period = 2.6
 
     var body: some View {
         Group {
-            if reduceMotion {
-                BearCanvas(lift: lift, t: 0, fill: fill)
+            if let t = frozenAt ?? (reduceMotion ? 0 : nil) {
+                BearCanvas(pose: BearPose.pose(for: lift, t: t), fill: fill)
             } else {
                 TimelineView(.animation) { tl in
-                    let t = tl.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 2.6) / 2.6
-                    BearCanvas(lift: lift, t: t, fill: fill)
+                    let t = tl.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.period) / Self.period
+                    BearCanvas(pose: BearPose.pose(for: lift, t: t), fill: fill)
                 }
             }
         }
         .frame(width: size, height: size)
         .accessibilityElement()
-        .accessibilityLabel("Line-art bear doing \(lift.displayName.lowercased())s")
+        .accessibilityLabel("Line-art bear doing a \(lift.displayName.lowercased())")
     }
 }
 
-/// Pose parameters for one frame (in the mockup's 120×120 coordinate space).
-struct BearPose: Equatable {
-    /// Body offset (down = squat depth).
-    var dx: CGFloat = 0
-    var dy: CGFloat = 0
-    /// Knee position.
-    var knee = CGPoint(x: 60, y: 88)
-    /// Hip position (top of thigh).
-    var hip = CGPoint(x: 58, y: 68)
-    /// Torso lean in degrees (hinge).
-    var lean: Double = 0
-    /// Barbell plate center, in body coordinates.
-    var bar = CGPoint(x: 70, y: 40)
+/// Key pose values, in the 120 × 120 drawing space (y grows down; the bear
+/// faces right). The bar is placed relative to the shoulder.
+struct BearKey {
+    var t: Double
+    var hipX: CGFloat
+    var hipY: CGFloat
+    /// Torso lean from vertical, degrees (positive = forward).
+    var lean: CGFloat
+    /// Heels up (triple extension), points.
+    var heel: CGFloat = 0
+    /// Shoulder shrug, points.
+    var shrug: CGFloat = 0
+    var barDX: CGFloat
+    var barDY: CGFloat
+    /// Elbow bend side: +1 forward/down, -1 back/up.
+    var elbow: CGFloat = 1
+}
 
-    /// Keyframes: 0 -> 0.4 down, hold to 0.5, back up by 0.9.
-    static func ease(_ t: Double) -> CGFloat {
-        let u: Double
-        switch t {
-        case ..<0.4: u = t / 0.4
-        case ..<0.5: u = 1
-        case ..<0.9: u = 1 - (t - 0.5) / 0.4
-        default: u = 0
+struct BearPose: Equatable {
+    var ankle: CGPoint
+    var toe: CGPoint
+    var knee: CGPoint
+    var hip: CGPoint
+    var shoulder: CGPoint
+    var head: CGPoint
+    var lean: CGFloat
+    var elbow: CGPoint
+    var hand: CGPoint
+    var bar: CGPoint
+
+    static let shin: CGFloat = 19, thigh: CGFloat = 19, torso: CGFloat = 26, upperArm: CGFloat = 14.5, forearm: CGFloat = 14.5
+    static let groundAnkle = CGPoint(x: 56, y: 103)
+
+    // Common bar positions relative to the shoulder.
+    static let hang = (dx: CGFloat(1), dy: CGFloat(27.5))
+    static let frontRack = (dx: CGFloat(10), dy: CGFloat(0))
+    static let backRack = (dx: CGFloat(-9), dy: CGFloat(-2))
+    static let overhead = (dx: CGFloat(-3), dy: CGFloat(-28.8))
+    static let standHip = (x: CGFloat(56), y: CGFloat(65.5))
+
+    static func keys(for lift: Lift) -> [BearKey] {
+        let s = standHip
+        switch lift {
+        case .backSquat:
+            let b = backRack
+            return [BearKey(t: 0, hipX: s.x, hipY: s.y, lean: 4, barDX: b.dx, barDY: b.dy, elbow: -1),
+                    BearKey(t: 0.4, hipX: 42, hipY: 84, lean: 40, barDX: b.dx, barDY: b.dy, elbow: -1),
+                    BearKey(t: 0.5, hipX: 42, hipY: 84, lean: 40, barDX: b.dx, barDY: b.dy, elbow: -1),
+                    BearKey(t: 0.9, hipX: s.x, hipY: s.y, lean: 4, barDX: b.dx, barDY: b.dy, elbow: -1)]
+        case .frontSquat:
+            let b = frontRack
+            return [BearKey(t: 0, hipX: s.x, hipY: s.y, lean: 0, barDX: b.dx, barDY: b.dy),
+                    BearKey(t: 0.4, hipX: 45, hipY: 86, lean: 16, barDX: b.dx, barDY: b.dy),
+                    BearKey(t: 0.5, hipX: 45, hipY: 86, lean: 16, barDX: b.dx, barDY: b.dy),
+                    BearKey(t: 0.9, hipX: s.x, hipY: s.y, lean: 0, barDX: b.dx, barDY: b.dy)]
+        case .deadlift:
+            let h = hang
+            return [BearKey(t: 0, hipX: s.x, hipY: s.y, lean: 0, barDX: h.dx, barDY: h.dy),
+                    BearKey(t: 0.45, hipX: 42, hipY: 79, lean: 64, barDX: h.dx, barDY: h.dy),
+                    BearKey(t: 0.55, hipX: 42, hipY: 79, lean: 64, barDX: h.dx, barDY: h.dy),
+                    BearKey(t: 0.95, hipX: s.x, hipY: s.y, lean: 0, barDX: h.dx, barDY: h.dy)]
+        case .hangPowerClean:
+            let h = hang, r = frontRack
+            return [BearKey(t: 0, hipX: 52, hipY: 67, lean: 20, barDX: h.dx, barDY: h.dy),
+                    BearKey(t: 0.16, hipX: 50, hipY: 70, lean: 24, barDX: h.dx, barDY: h.dy),
+                    BearKey(t: 0.3, hipX: 57, hipY: 63, lean: -6, heel: 6, shrug: 3, barDX: 3, barDY: 20),
+                    BearKey(t: 0.38, hipX: 56, hipY: 63.5, lean: -2, heel: 4, shrug: 2, barDX: 9, barDY: 6, elbow: -1),
+                    BearKey(t: 0.46, hipX: 52, hipY: 73, lean: 10, barDX: r.dx, barDY: r.dy),
+                    BearKey(t: 0.66, hipX: s.x, hipY: s.y, lean: 0, barDX: r.dx, barDY: r.dy),
+                    BearKey(t: 0.86, hipX: 52, hipY: 67, lean: 20, barDX: h.dx, barDY: h.dy)]
+        case .pushPress:
+            let r = frontRack, o = overhead
+            return [BearKey(t: 0, hipX: s.x, hipY: s.y, lean: 0, barDX: r.dx, barDY: r.dy),
+                    BearKey(t: 0.18, hipX: 53, hipY: 73, lean: 0, barDX: r.dx, barDY: r.dy),
+                    BearKey(t: 0.3, hipX: s.x, hipY: 63, lean: -3, heel: 5, barDX: 4, barDY: -17),
+                    BearKey(t: 0.42, hipX: s.x, hipY: s.y, lean: 0, barDX: o.dx, barDY: o.dy),
+                    BearKey(t: 0.68, hipX: s.x, hipY: s.y, lean: 0, barDX: o.dx, barDY: o.dy),
+                    BearKey(t: 0.9, hipX: s.x, hipY: s.y, lean: 0, barDX: r.dx, barDY: r.dy)]
+        case .pushJerk:
+            let r = frontRack, o = overhead
+            return [BearKey(t: 0, hipX: s.x, hipY: s.y, lean: 0, barDX: r.dx, barDY: r.dy),
+                    BearKey(t: 0.16, hipX: 53, hipY: 73, lean: 0, barDX: r.dx, barDY: r.dy),
+                    BearKey(t: 0.26, hipX: s.x, hipY: 62.5, lean: -3, heel: 6, barDX: 4, barDY: -13),
+                    BearKey(t: 0.36, hipX: 51, hipY: 76, lean: 3, barDX: o.dx, barDY: o.dy),
+                    BearKey(t: 0.52, hipX: s.x, hipY: s.y, lean: 0, barDX: o.dx, barDY: o.dy),
+                    BearKey(t: 0.7, hipX: s.x, hipY: s.y, lean: 0, barDX: o.dx, barDY: o.dy),
+                    BearKey(t: 0.9, hipX: s.x, hipY: s.y, lean: 0, barDX: r.dx, barDY: r.dy)]
         }
-        return CGFloat(0.5 - 0.5 * cos(u * .pi))
+    }
+
+    /// Interpolated key at loop phase t (smoothstep between keys, wrapping
+    /// back to the first key).
+    static func key(for lift: Lift, t: Double) -> BearKey {
+        let ks = keys(for: lift)
+        let tt = t - floor(t)
+        var a = ks[ks.count - 1], b = ks[0]
+        var span = 1 - a.t, u = (tt - a.t) / max(span, 0.0001)
+        for i in 0..<ks.count {
+            let next = i + 1 < ks.count ? ks[i + 1] : ks[0]
+            let end = i + 1 < ks.count ? next.t : 1
+            if tt >= ks[i].t && tt < end {
+                a = ks[i]; b = next; span = end - ks[i].t
+                u = (tt - ks[i].t) / max(span, 0.0001)
+                break
+            }
+        }
+        let e = CGFloat(u * u * (3 - 2 * u))
+        func m(_ x: CGFloat, _ y: CGFloat) -> CGFloat { x + (y - x) * e }
+        return BearKey(t: tt, hipX: m(a.hipX, b.hipX), hipY: m(a.hipY, b.hipY), lean: m(a.lean, b.lean), heel: m(a.heel, b.heel),
+                       shrug: m(a.shrug, b.shrug), barDX: m(a.barDX, b.barDX), barDY: m(a.barDY, b.barDY), elbow: m(a.elbow, b.elbow))
     }
 
     static func pose(for lift: Lift, t: Double) -> BearPose {
-        let u = ease(t)
-        func lerp(_ a: CGFloat, _ b: CGFloat) -> CGFloat { a + (b - a) * u }
-        var p = BearPose()
-        switch lift {
-        case .frontSquat, .backSquat:
-            p.dx = lerp(0, -6)
-            p.dy = lerp(0, 22)
-            p.knee = CGPoint(x: lerp(60, 72), y: lerp(88, 92))
-            p.hip = CGPoint(x: lerp(58, 52), y: lerp(68, 90))
-            p.bar = lift == .frontSquat ? CGPoint(x: 70, y: 40) : CGPoint(x: 52, y: 36)
-        case .deadlift:
-            // Hinge: torso tips forward, bar travels floor <-> hip.
-            p.lean = Double(lerp(0, 55))
-            p.dy = lerp(0, 8)
-            p.knee = CGPoint(x: lerp(60, 66), y: lerp(88, 90))
-            p.hip = CGPoint(x: lerp(58, 54), y: lerp(68, 74))
-            p.bar = CGPoint(x: lerp(66, 74), y: lerp(64, 70))
-        case .hangPowerClean:
-            // Bar from hip to shoulders with a little dip.
-            let v = 1 - u
-            p.dy = 6 * sin(CGFloat(t) * .pi * 2) * 0.5 + 3
-            p.bar = CGPoint(x: 70, y: 40 + 26 * v)
-        case .pushPress, .pushJerk:
-            // Dip, then drive the bar overhead (jerk dips lower to catch).
-            let v = 1 - u
-            p.dy = lift == .pushJerk ? 10 * v : 6 * v
-            p.knee = CGPoint(x: 60 + 6 * v, y: 88 + 2 * v)
-            p.hip = CGPoint(x: 58 - 2 * v, y: 68 + 8 * v)
-            p.bar = CGPoint(x: 60, y: 40 - 34 * u)
-        }
-        return p
+        let k = key(for: lift, t: t)
+        let ankle = CGPoint(x: groundAnkle.x, y: groundAnkle.y - k.heel)
+        let toe = CGPoint(x: groundAnkle.x + 9, y: 106)
+        let hip = CGPoint(x: k.hipX, y: k.hipY - k.heel * 0.6)
+        let knee = solve(from: ankle, to: hip, a: shin, b: thigh, side: 1)
+        let rad = k.lean * .pi / 180
+        let len = torso + k.shrug
+        let shoulder = CGPoint(x: hip.x + sin(rad) * len, y: hip.y - cos(rad) * len)
+        let head = CGPoint(x: shoulder.x + sin(rad * 0.6) * 14 + 5, y: shoulder.y - cos(rad * 0.6) * 14 - 2)
+        let bar = CGPoint(x: shoulder.x + k.barDX, y: shoulder.y + k.barDY)
+        let elbow = solve(from: shoulder, to: bar, a: upperArm, b: forearm, side: k.elbow)
+        return BearPose(ankle: ankle, toe: toe, knee: knee, hip: hip, shoulder: shoulder, head: head, lean: k.lean,
+                        elbow: elbow, hand: bar, bar: bar)
+    }
+
+    /// Two-bone IK: the joint between `from` and `to` given bone lengths.
+    /// `side` picks which way it bends (and scales the bend smoothly).
+    static func solve(from p: CGPoint, to q: CGPoint, a: CGFloat, b: CGFloat, side: CGFloat) -> CGPoint {
+        let dx = q.x - p.x, dy = q.y - p.y
+        let raw = max(sqrt(dx * dx + dy * dy), 0.001)
+        let d = min(max(raw, abs(a - b) + 0.01), a + b - 0.01)
+        let along = (a * a - b * b + d * d) / (2 * d)
+        let h = sqrt(max(a * a - along * along, 0))
+        let ux = dx / raw, uy = dy / raw
+        let base = CGPoint(x: p.x + ux * along, y: p.y + uy * along)
+        // Perpendicular offset: for an upward leg (ankle -> hip) side +1 bends the knee forward.
+        return CGPoint(x: base.x - uy * h * side, y: base.y + ux * h * side)
     }
 }
 
 struct BearCanvas: View {
-    var lift: Lift
-    var t: Double
+    var pose: BearPose
     var fill: Color
 
     var body: some View {
-        let pose = BearPose.pose(for: lift, t: t)
+        let p = pose
         Canvas { ctx, size in
-            let s = size.width / 120
-            ctx.scaleBy(x: s, y: s)
+            ctx.scaleBy(x: size.width / 120, y: size.height / 120)
             let ink = GraphicsContext.Shading.color(Palette.ink)
-            let line = StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round)
+            let paper = GraphicsContext.Shading.color(fill)
+            func limb(_ pts: [CGPoint]) -> Path {
+                var path = Path()
+                path.move(to: pts[0])
+                pts.dropFirst().forEach { path.addLine(to: $0) }
+                return path
+            }
+            func round(_ w: CGFloat) -> StrokeStyle { StrokeStyle(lineWidth: w, lineCap: .round, lineJoin: .round) }
+            func blob(_ c: CGPoint, _ rx: CGFloat, _ ry: CGFloat, fill f: GraphicsContext.Shading, line: CGFloat = 3) {
+                let e = Path(ellipseIn: CGRect(x: c.x - rx, y: c.y - ry, width: rx * 2, height: ry * 2))
+                ctx.fill(e, with: f)
+                ctx.stroke(e, with: ink, lineWidth: line)
+            }
+
             // Floor
             var floor = Path()
-            floor.move(to: CGPoint(x: 30, y: 110))
-            floor.addLine(to: CGPoint(x: 96, y: 110))
+            floor.move(to: CGPoint(x: 26, y: 109))
+            floor.addLine(to: CGPoint(x: 98, y: 109))
             ctx.stroke(floor, with: ink, style: StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [1, 6]))
-            // Leg: foot, shin, thigh
-            var leg = Path()
-            leg.move(to: CGPoint(x: 70, y: 108))
-            leg.addLine(to: CGPoint(x: 60, y: 108))
-            leg.addLine(to: pose.knee)
-            leg.addLine(to: pose.hip)
-            ctx.stroke(leg, with: ink, style: line)
 
-            // Upper body (translated for squat depth, rotated for hinge).
-            var body = ctx
-            body.translateBy(x: pose.dx, y: pose.dy)
-            body.translateBy(x: 57, y: 68)
-            body.rotate(by: .degrees(pose.lean))
-            body.translateBy(x: -57, y: -68)
-            func blob(_ r: CGRect, _ w: CGFloat = 3) {
-                let p = Path(ellipseIn: r)
-                body.fill(p, with: .color(fill))
-                body.stroke(p, with: ink, style: StrokeStyle(lineWidth: w))
+            // Body + chunky legs: ink outline pass, then fill pass, so joints merge.
+            let leg = limb([p.hip, p.knee, p.ankle])
+            let foot = limb([p.ankle, p.toe])
+            let trunk = limb([p.hip, p.shoulder])
+            ctx.stroke(trunk, with: ink, style: round(27))
+            ctx.stroke(leg, with: ink, style: round(20))
+            ctx.stroke(foot, with: ink, style: round(12))
+            ctx.stroke(trunk, with: paper, style: round(22))
+            ctx.stroke(leg, with: paper, style: round(15))
+            ctx.stroke(foot, with: paper, style: round(7))
+            // Little tail
+            let rad = p.lean * .pi / 180
+            blob(CGPoint(x: p.hip.x - 10 * cos(rad) - 1, y: p.hip.y - 1 - 10 * sin(rad) * 0.3), 3.2, 3.2, fill: paper, line: 2.5)
+            // Belly patch
+            let mid = CGPoint(x: (p.hip.x + p.shoulder.x) / 2 + 5 * cos(rad), y: (p.hip.y + p.shoulder.y) / 2 + 5 * sin(rad))
+            ctx.fill(Path(ellipseIn: CGRect(x: mid.x - 4, y: mid.y - 6, width: 8, height: 12)), with: .color(Palette.bubblegum.opacity(0.35)))
+
+            func drawPlate() {
+            // Barbell end: orange plate (bar runs into the page)
+            let plate = Path(ellipseIn: CGRect(x: p.bar.x - 8.5, y: p.bar.y - 8.5, width: 17, height: 17))
+            ctx.fill(plate, with: .color(Palette.tangerine))
+            ctx.stroke(plate, with: ink, lineWidth: 2.5)
+            ctx.fill(Path(ellipseIn: CGRect(x: p.bar.x - 2.5, y: p.bar.y - 2.5, width: 5, height: 5)), with: ink)
             }
-            blob(CGRect(x: 46, y: 40, width: 22, height: 30))
-            blob(CGRect(x: 48.5, y: 12.5, width: 9, height: 9), 2.5)
-            blob(CGRect(x: 61.5, y: 12.5, width: 9, height: 9), 2.5)
-            blob(CGRect(x: 49, y: 16, width: 22, height: 22))
-            blob(CGRect(x: 65, y: 26.4, width: 10, height: 7.2), 2.5)
-            body.fill(Path(ellipseIn: CGRect(x: 72.4, y: 27.4, width: 3.2, height: 3.2)), with: ink)
-            body.fill(Path(ellipseIn: CGRect(x: 62.4, y: 22.4, width: 3.2, height: 3.2)), with: ink)
-            body.fill(Path(ellipseIn: CGRect(x: 59.8, y: 28.8, width: 4.4, height: 4.4)), with: .color(Palette.bubblegum.opacity(0.8)))
-            // Arm to the bar
-            var arm = Path()
-            arm.move(to: CGPoint(x: 60, y: 46))
-            arm.addLine(to: CGPoint(x: (60 + pose.bar.x) / 2 + 4, y: (46 + pose.bar.y) / 2 + 4))
-            arm.addLine(to: pose.bar)
-            body.stroke(arm, with: ink, style: line)
-            // Barbell end (orange plate)
-            let plate = Path(ellipseIn: CGRect(x: pose.bar.x - 10, y: pose.bar.y - 10, width: 20, height: 20))
-            body.fill(plate, with: .color(Palette.tangerine))
-            body.stroke(plate, with: ink, style: StrokeStyle(lineWidth: 2.5))
-            body.fill(Path(ellipseIn: CGRect(x: pose.bar.x - 2.5, y: pose.bar.y - 2.5, width: 5, height: 5)), with: ink)
+            func drawArm() {
+            // Arm (outlined, on top of the body)
+            let arm = limb([p.shoulder, p.elbow, p.hand])
+            ctx.stroke(arm, with: ink, style: round(11))
+            ctx.stroke(arm, with: paper, style: round(6.5))
+
+            }
+            func drawHead() {
+            // Head
+            let h = p.head
+            blob(CGPoint(x: h.x - 5, y: h.y - 10), 4.6, 4.6, fill: paper, line: 2.5)
+            blob(CGPoint(x: h.x + 6, y: h.y - 10), 4.6, 4.6, fill: paper, line: 2.5)
+            blob(h, 11, 11, fill: paper)
+            blob(CGPoint(x: h.x + 10, y: h.y + 3), 5, 3.6, fill: paper, line: 2.5)
+            ctx.fill(Path(ellipseIn: CGRect(x: h.x + 12.4, y: h.y + 0.4, width: 3.2, height: 3.2)), with: ink)
+            ctx.fill(Path(ellipseIn: CGRect(x: h.x + 2.4, y: h.y - 4.6, width: 3.2, height: 3.2)), with: ink)
+            ctx.fill(Path(ellipseIn: CGRect(x: h.x - 0.2, y: h.y + 1.8, width: 4.4, height: 4.4)), with: .color(Palette.bubblegum.opacity(0.8)))
+
+            }
+            // Bar on the back sits behind the head; otherwise the plate is in front.
+            if p.bar.x < p.shoulder.x - 2 && p.bar.y > p.shoulder.y - 12 {
+                drawArm(); drawPlate(); drawHead()
+            } else {
+                drawHead(); drawArm(); drawPlate()
+            }
         }
+    }
+}
+
+/// Debug gallery (UI-testing only): every lift at several phases.
+struct BearGallery: View {
+    let phases: [Double] = [0, 0.18, 0.3, 0.42, 0.62]
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(Lift.allCases, id: \.self) { lift in
+                    Text(lift.displayName).hand(18)
+                    HStack(spacing: 0) {
+                        ForEach(phases, id: \.self) { t in
+                            BearView(lift: lift, size: 76, frozenAt: t)
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.top, 50)
+        }
+        .background(Palette.paper)
     }
 }
