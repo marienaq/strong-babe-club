@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Least privilege: jobs only read the repo.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  XCODEGEN_VERSION: "2.46.0"
+  XCODEGEN_SHA256: "4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806"
+  GITLEAKS_VERSION: "8.30.1"
+  GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+
+jobs:
+  repo-hygiene:
+    name: Secret scan + personal-data guard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: No spreadsheets or exported personal data are tracked
+        run: |
+          if git ls-files | grep -Ei '\.(xlsx|xls|csv)$|^data/'; then
+            echo "::error::Personal data files must not be committed (see .gitignore)."
+            exit 1
+          fi
+      - name: Install gitleaks (pinned + checksum-verified)
+        run: |
+          curl -sSfL -o gitleaks.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tgz" | sha256sum -c -
+          tar -xzf gitleaks.tgz gitleaks
+      - name: Scan full history for secrets
+        run: ./gitleaks git --redact --verbose --exit-code 1 .
+
+  core:
+    name: WorkoutCore tests (macOS)
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Toolchain
+        run: swift --version && xcodebuild -version
+      - name: swift test (real XCTest)
+        working-directory: Packages/WorkoutCore
+        run: swift test
+      - name: Same tests via the no-Xcode shim runner (keeps the local path honest)
+        # Informational: `swift test` above is the source of truth on CI.
+        continue-on-error: true
+        run: scripts/test-core.sh --local
+      - name: Type-check app sources the way local dev does
+        run: scripts/typecheck-app.sh
+
+  app:
+    name: iOS app build + unit/UI tests (simulator)
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install XcodeGen (pinned + checksum-verified)
+        run: |
+          curl -sSfL -o xcodegen.zip "https://github.com/yonaskolb/XcodeGen/releases/download/${XCODEGEN_VERSION}/xcodegen.zip"
+          echo "${XCODEGEN_SHA256}  xcodegen.zip" | shasum -a 256 -c -
+          unzip -q xcodegen.zip
+          echo "$PWD/xcodegen/bin" >> "$GITHUB_PATH"
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: Pick an iPhone simulator
+        id: sim
+        run: echo "udid=$(scripts/ci-pick-simulator.sh)" >> "$GITHUB_OUTPUT"
+      - name: Build and test (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project StrongBabeClub.xcodeproj \
+            -scheme StrongBabeClub \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -resultBundlePath TestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee xcodebuild.log | grep -E "error:|warning: .*StrongBabeClub|Test Suite|Executed|\*\* (BUILD|TEST)" || true
+          grep -q "\*\* TEST SUCCEEDED \*\*" xcodebuild.log

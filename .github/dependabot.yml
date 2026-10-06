@@ -1,0 +1,14 @@
+version: 2
+updates:
+  # Keeps the SHA-pinned GitHub Actions current (Dependabot updates the SHA
+  # and the version comment together).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  # WorkoutCore has zero dependencies today; this watches for any that get added.
+  - package-ecosystem: swift
+    directory: /Packages/WorkoutCore
+    schedule:
+      interval: weekly
