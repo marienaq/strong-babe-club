@@ -19,6 +19,14 @@ struct RootView: View {
     enum Tab: Hashable { case today, journal, progress, settings }
 
     var body: some View {
+        if store.needsOnboarding {
+            OnboardingView()
+        } else {
+            tabs
+        }
+    }
+
+    var tabs: some View {
         TabView(selection: $tab) {
             TodayView()
                 .tabItem { Label("Today", systemImage: "sun.max") }

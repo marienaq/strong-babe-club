@@ -26,7 +26,7 @@ Pick a mascot in Settings (and during onboarding). It acts out every lift.
 - All sounds are self-made or synthesized, so there are no licensing issues.
 - **Done:** boxing gym, arcade, wind chimes, cowbell and soft marimba, synthesized by scripts/make-sounds.py (20 files, 1.3 MB). Settings has a pack picker with preview, and lock-screen notifications use the chosen pack.
 
-## 4. Music during workouts (needs decision)
+## 4. Music during workouts (needs decision, paused)
 Options, from simplest to richest:
 - **a.** "Open my playlist" button: links to a Spotify or Apple Music playlist URL of your choice. No SDK, no account linking, and the app stays offline. Timer sounds already play over music.
 - **b.** Apple Music via MusicKit: play and pause a playlist from inside the app. Needs an Apple Music subscription and permission.
@@ -42,6 +42,16 @@ Features a stranger needs on day one:
 - **Localization:** units and dates are ready; strings are kept translatable.
 - **Owner-specific defaults** (Mon/Wed/Fri, these plates, the six lifts, the test-week date) become onboarding choices.
 - **App Store readiness:** privacy policy, store screenshots, support contact (see the TestFlight vs App Store notes).
+- **Done:**
+  - **Onboarding (6 steps, all skippable):** name, units, training days, main lifts, limits, then lifting buddy plus how to start (start light, "I know my weights", or test week).
+  - **Existing installs:** any install with data skips onboarding and keeps its settings and dates.
+  - **Rotation:** works for any schedule and any choice of lifts. 3 days with the six default lifts keeps the A/B weeks; other set-ups cycle through the chosen lifts. Lifts can be reordered in Settings > Main lifts.
+  - **CSV import:** a template (`date,lift,set,reps,weight,unit`) can be shared from Settings, and imports are saved all-or-nothing in batches.
+  - **Delete all data:** returns the app to onboarding.
+- **Left:**
+  - A full Dynamic Type / VoiceOver audit. Fonts scale with the text size and there are labels throughout, but fixed-height rows haven't been checked at the largest sizes.
+  - Localization string catalogs.
+  - App Store items (privacy policy, store screenshots, support contact).
 
 ## Done
 - v1 core flow, scrapbook design, real-history import, timers and sounds, streak against the schedule, sick days and breaks, app icon.

@@ -141,4 +141,27 @@ final class RoundTwoUITests: XCTestCase {
         XCTAssertTrue(timeline.waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["yearToggle"].isSelected)
     }
+
+    /// A new person: onboarding (kg, two days, start light) lands on Today.
+    func testOnboardingFlow() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-ui-testing", "-sbc-empty", "-sbc-onboarding"]
+        app.launch()
+        let name = app.textFields["onboardingName"]
+        XCTAssertTrue(name.waitForExistence(timeout: 15))
+        name.tap()
+        name.typeText("Sam")
+        app.buttons["onboardingNext"].tap()             // -> units
+        app.buttons["kg"].tap()
+        app.buttons["onboardingNext"].tap()             // -> days
+        app.buttons["Monday"].tap()                     // turn off Mon, keep Wed/Fri
+        app.buttons["onboardingNext"].tap()             // -> lifts
+        app.buttons["onboardingNext"].tap()             // -> limits
+        app.buttons["onboardingNext"].tap()             // -> buddy & start
+        app.buttons["Fox"].tap()
+        app.buttons["onboardingNext"].tap()             // let's lift!
+        if !app.staticTexts["Hey, Sam"].waitForExistence(timeout: 10) { print("DUMP:\n" + app.debugDescription) }
+        XCTAssertTrue(app.staticTexts["Hey, Sam"].exists)
+        XCTAssertTrue(app.buttons["startWorkout"].waitForExistence(timeout: 10))
+    }
 }

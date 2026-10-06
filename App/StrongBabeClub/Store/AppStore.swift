@@ -59,6 +59,7 @@ final class AppStore {
             benchmarks = d.benchmarks
             goals = d.goals
             clearImportedStickers()
+            migrateOnboarding()
             Log.store.info("loaded \(self.workouts.count, privacy: .public) workouts")
         } catch {
             fail("Couldn't open your journal.", error)
@@ -68,6 +69,7 @@ final class AppStore {
     /// Backfills missed days, rolls training maxes forward and makes sure the
     /// next workout is planned (re-planning untouched future plans).
     func prepare() async {
+        guard settings.onboarded else { return } // nothing to plan until set up
         let t = today
         backfillMissedDays(through: t.adding(days: -1))
         rollTrainingMaxes(asOf: t)
@@ -299,6 +301,69 @@ final class AppStore {
         Log.store.info("cleared \(stray.count, privacy: .public) imported stickers")
     }
 
+    // MARK: Onboarding
+
+    /// A brand-new install (installs with data are migrated to onboarded on load).
+    var needsOnboarding: Bool { !settings.onboarded }
+
+    /// Existing installs (data already there) skip onboarding for good, with
+    /// their settings as they are. Test mode skips it unless asked for.
+    private func migrateOnboarding() {
+        guard !settings.onboarded else { return }
+        let testModeSkip = DebugRoute.enabled && !DebugRoute.flag("-sbc-onboarding")
+        guard !workouts.isEmpty || testModeSkip else { return }
+        settings.onboarded = true
+        persist { try repo.save(settings: settings) }
+    }
+
+    enum StartChoice: Equatable, Sendable {
+        /// Next Monday is a test week.
+        case testWeek
+        /// Training maxes from a recent heavy set of 5 per lift (display unit).
+        case manual([Lift: Double])
+        /// Light, bar-based training maxes.
+        case startLight
+    }
+
+    struct OnboardingChoices: Sendable {
+        var name = ""
+        var unit: WeightUnit = .lb
+        var schedule: [Weekday] = [.monday, .wednesday, .friday]
+        var lifts: [Lift] = Lift.allCases
+        var limits = TrainingLimits()
+        var start: StartChoice = .startLight
+    }
+
+    func completeOnboarding(_ c: OnboardingChoices) {
+        let thisMonday = today.startOfWeek
+        var s = PlannerSettings(displayName: c.name, schedule: c.schedule, equipment: .preset(c.unit), limits: c.limits,
+                                rotationAnchor: thisMonday, lifts: c.lifts, onboarded: true)
+        switch c.start {
+        case .testWeek:
+            // Next Monday tests; block 1 follows a week later.
+            s.testWeekStart = thisMonday.adding(days: 7)
+        case .manual, .startLight:
+            // Block 1 starts this week; no test week.
+            s.testWeekStart = thisMonday.adding(days: -7)
+        }
+        updateSettings(s)
+        let bar = s.equipment.barWeight
+        switch c.start {
+        case .startLight:
+            for lift in Lift.allCases {
+                let tm = lift.isLowerBody ? bar + (c.unit == .kg ? 10 : 20) : bar
+                setTrainingMax(lift, c.unit.toPounds(tm))
+            }
+        case .manual(let sets):
+            for (lift, weight) in sets where weight > 0 {
+                setTrainingMax(lift, c.unit.toPounds(TrainingMax.fromSet(weight: weight, reps: 5)))
+            }
+        case .testWeek:
+            break
+        }
+        Task { await prepare() }
+    }
+
     // MARK: Missed, sick, skipped, moved
 
     /// Journal: mark a missed day as a sick day (excused).
@@ -465,57 +530,20 @@ final class AppStore {
     /// already written are removed again and the error is thrown (shown to
     /// the user), so a half-imported journal is never left behind.
     func importFile(_ data: Data) async throws -> String {
+        if CSVHistoryImporter.looksLikeTemplate(data) {
+            let stamp = now
+            let result = try await Task.detached(priority: .userInitiated) {
+                try CSVHistoryImporter.importCSV(data, now: stamp)
+            }.value
+            return try await saveImported(result)
+        }
         switch BackupCodec.sniff(data) {
         case .coachHistory:
             let stamp = now
             let result = try await Task.detached(priority: .userInitiated) {
                 try HistoryImporter().importCoachHistory(data, now: stamp)
             }.value
-            // Days logged in the app win; earlier imports are replaced (re-importing
-            // a newer file fixes or updates them).
-            let appLogged = Set(visibleWorkouts.filter {
-                $0.source == "import-edited" || ($0.source != "import" && ($0.status == .done || $0.status == .excused))
-            }.map(\.date))
-            let fresh = result.workouts.filter { !appLogged.contains($0.date) }
-            let freshDates = Set(fresh.map(\.date))
-            // Statuses of earlier imported days are refreshed; days the owner
-            // edited ("import-edited") or logged in the app are kept.
-            let replaced = visibleWorkouts.filter { $0.source == "import" && freshDates.contains($0.date) }
-            importProgress = (0, fresh.count)
-            defer { importProgress = nil }
-            var inserted: [UUID] = []
-            do {
-                try repo.delete(workoutIDs: replaced.map(\.id))
-            } catch {
-                throw StoreError.importNotSaved
-            }
-            do {
-                var start = 0
-                while start < fresh.count {
-                    let batch = Array(fresh[start..<min(start + Self.importBatchSize, fresh.count)])
-                    try repo.insert(batch: batch)
-                    inserted += batch.map(\.id)
-                    start += batch.count
-                    importProgress = (start, fresh.count)
-                    await Task.yield()
-                }
-            } catch {
-                // All or nothing: drop what was written and put back what was replaced.
-                try? repo.delete(workoutIDs: inserted)
-                try? repo.insert(batch: replaced)
-                Log.importer.error("import rolled back [\(Log.kind(error), privacy: .public)]")
-                throw StoreError.importNotSaved
-            }
-            let replacedIDs = Set(replaced.map(\.id))
-            workouts.removeAll { replacedIDs.contains($0.id) }
-            workouts.append(contentsOf: fresh)
-            workouts.sort { $0.date < $1.date }
-            if benchmarks.isEmpty { proposeBenchmarks() }
-            rollTrainingMaxes(asOf: today)
-            Log.importer.info("imported \(fresh.count, privacy: .public) workouts, \(result.issues.count, privacy: .public) issues")
-            var summary = result.summary(imported: fresh.count, alreadyPresent: result.workouts.count - fresh.count)
-            if !replaced.isEmpty { summary += " \(replaced.count) earlier imported workouts were updated." }
-            return summary
+            return try await saveImported(result)
         case .appBackup:
             let (backup, issues) = try BackupCodec.decode(data)
             let d = StoredData(settings: backup.settings, workouts: backup.workouts, liftPrograms: backup.liftPrograms,
@@ -527,6 +555,55 @@ final class AppStore {
         case nil:
             throw ImportError.notJSON
         }
+    }
+
+    /// Saves an import atomically in batches (coach JSON or CSV template).
+    private func saveImported(_ result: ImportResult) async throws -> String {
+        // Days logged in the app win; earlier imports are replaced (re-importing
+        // a newer file fixes or updates them).
+        let appLogged = Set(visibleWorkouts.filter {
+            $0.source == "import-edited" || ($0.source != "import" && ($0.status == .done || $0.status == .excused))
+        }.map(\.date))
+        let fresh = result.workouts.filter { !appLogged.contains($0.date) }
+        let freshDates = Set(fresh.map(\.date))
+        // Statuses of earlier imported days are refreshed; days the owner
+        // edited ("import-edited") or logged in the app are kept.
+        let replaced = visibleWorkouts.filter { $0.source == "import" && freshDates.contains($0.date) }
+        importProgress = (0, fresh.count)
+        defer { importProgress = nil }
+        var inserted: [UUID] = []
+        do {
+            try repo.delete(workoutIDs: replaced.map(\.id))
+        } catch {
+            throw StoreError.importNotSaved
+        }
+        do {
+            var start = 0
+            while start < fresh.count {
+                let batch = Array(fresh[start..<min(start + Self.importBatchSize, fresh.count)])
+                try repo.insert(batch: batch)
+                inserted += batch.map(\.id)
+                start += batch.count
+                importProgress = (start, fresh.count)
+                await Task.yield()
+            }
+        } catch {
+            // All or nothing: drop what was written and put back what was replaced.
+            try? repo.delete(workoutIDs: inserted)
+            try? repo.insert(batch: replaced)
+            Log.importer.error("import rolled back [\(Log.kind(error), privacy: .public)]")
+            throw StoreError.importNotSaved
+        }
+        let replacedIDs = Set(replaced.map(\.id))
+        workouts.removeAll { replacedIDs.contains($0.id) }
+        workouts.append(contentsOf: fresh)
+        workouts.sort { $0.date < $1.date }
+        if benchmarks.isEmpty { proposeBenchmarks() }
+        rollTrainingMaxes(asOf: today)
+        Log.importer.info("imported \(fresh.count, privacy: .public) workouts, \(result.issues.count, privacy: .public) issues")
+        var summary = result.summary(imported: fresh.count, alreadyPresent: result.workouts.count - fresh.count)
+        if !replaced.isEmpty { summary += " \(replaced.count) earlier imported workouts were updated." }
+        return summary
     }
 
     func exportBackup() throws -> Data {

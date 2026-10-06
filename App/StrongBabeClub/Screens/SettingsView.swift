@@ -135,11 +135,16 @@ struct SettingsView: View {
                     DatePicker("First test week", selection: dateBinding(\.testWeekStart), displayedComponents: .date)
                     NavigationLink("Training maxes") { TrainingMaxView() }
                     NavigationLink("Benchmarks (\(store.benchmarks.filter(\.active).count) active)") { BenchmarksView() }
+                    NavigationLink("Main lifts (\(store.settings.lifts.count))") { LiftsView() }
                     NavigationLink("Breaks (\(store.settings.breaks.count))") { BreaksView() }
                         .accessibilityIdentifier("breaksLink")
                 }
                 Section {
-                    Button("Import history or backup (JSON)…") { showImporter = true }
+                    Button("Import history or backup (JSON or CSV)…") { showImporter = true }
+                    ShareLink(item: CSVHistoryImporter.template + "2026-09-28,Back Squat,1,5,135,lb\n",
+                              preview: SharePreview("CSV history template")) {
+                        Text("Share the CSV template")
+                    }
                     Button("Export backup (JSON)…") { export(json: true) }
                     Button("Export set logs (CSV)…") { export(json: false) }
                     Button("Delete all data…", role: .destructive) { confirmDelete = true }
@@ -170,7 +175,7 @@ struct SettingsView: View {
                     Button("Save") { store.updateSettings(draft); message = "Saved." }.disabled(draft == store.settings)
                 }
             }
-            .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json], allowsMultipleSelection: false) { result in
+            .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json, .commaSeparatedText, .plainText], allowsMultipleSelection: false) { result in
                 handleImport(result)
             }
             .fileExporter(isPresented: $showExporter, document: exportDoc, contentType: exportType,
@@ -398,5 +403,40 @@ struct BreaksView: View {
         }
         .navigationTitle("Breaks")
         .inlineNavigationTitle()
+    }
+}
+
+/// Choose and order the main lifts (at least two).
+@MainActor
+struct LiftsView: View {
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        let chosen = store.settings.lifts
+        List {
+            Section {
+                ForEach(chosen, id: \.self) { lift in Text(lift.displayName) }
+                    .onMove { from, to in
+                        var s = store.settings
+                        s.lifts.move(fromOffsets: from, toOffset: to)
+                        store.updateSettings(s)
+                    }
+            } header: { Text("In rotation (drag to reorder)") } footer: {
+                Text(store.settings.rotation.isClassic
+                     ? "Three days with these six: squat, hip/pull and overhead days in two-week A/B rotation."
+                     : "Your lifts take turns, one per training day.")
+            }
+            Section("Add or remove") {
+                ForEach(Lift.allCases, id: \.self) { lift in
+                    Toggle(lift.displayName, isOn: Binding(get: { chosen.contains(lift) }, set: { on in
+                        var s = store.settings
+                        if on { s.lifts.append(lift) } else if s.lifts.count > 2 { s.lifts.removeAll { $0 == lift } }
+                        store.updateSettings(s)
+                    }))
+                }
+            }
+        }
+        .environment(\.editMode, .constant(.active))
+        .navigationTitle("Main lifts")
     }
 }

@@ -10,6 +10,8 @@ final class AppStoreTests: XCTestCase {
     let monday = Date(timeIntervalSince1970: 1_792_414_800)
 
     func makeStore(_ data: StoredData = StoredData()) -> AppStore {
+        var data = data
+        data.settings.onboarded = true // these tests start after setup
         let store = AppStore(repository: InMemoryRepository(data), clock: { self.monday })
         store.load()
         return store
@@ -249,6 +251,8 @@ final class MissedAndStickerTests: XCTestCase {
     let monday = Date(timeIntervalSince1970: 1_792_414_800) // Mon Oct 19 2026
 
     func makeStore(_ data: StoredData = StoredData()) -> AppStore {
+        var data = data
+        data.settings.onboarded = true // these tests start after setup
         let store = AppStore(repository: InMemoryRepository(data), clock: { self.monday })
         store.load()
         return store
@@ -329,6 +333,7 @@ final class MissedAndStickerTests: XCTestCase {
     func testMoveOnlyWithinTheWeekToAFreeDay() async throws {
         let sundayClock = Date(timeIntervalSince1970: 1_792_414_800 + 6 * 86_400) // Sun Oct 25
         var s = PlannerSettings.default
+        s.onboarded = true
         s.schedule = [.sunday]
         let store = AppStore(repository: InMemoryRepository(StoredData(settings: s)), clock: { sundayClock })
         store.load()
@@ -447,5 +452,80 @@ final class AnimalTests: XCTestCase {
             XCTAssertEqual(BearPose.pose(for: lift, t: 0.4), BearPose.pose(for: lift, t: 0.4))
         }
         XCTAssertEqual(StickerID.bear.displayName.hasPrefix("Squat "), true)
+    }
+}
+
+@MainActor
+final class OnboardingTests: XCTestCase {
+    let monday = Date(timeIntervalSince1970: 1_792_414_800) // Mon Oct 19 2026
+
+    func testFreshInstallOnboardsExistingInstallSkips() {
+        let fresh = AppStore(repository: InMemoryRepository(), clock: { self.monday })
+        fresh.load()
+        XCTAssertTrue(fresh.needsOnboarding)
+        // The owner: settings never saved, but a journal full of history.
+        let owner = AppStore(repository: InMemoryRepository(StoredData(workouts: [PlannedWorkout(date: LocalDate(2026, 10, 5), status: .done, source: "import")])),
+                             clock: { self.monday })
+        owner.load()
+        XCTAssertFalse(owner.needsOnboarding)
+        XCTAssertTrue(owner.settings.onboarded, "migrated and saved")
+        XCTAssertEqual(owner.settings.schedule, [.monday, .wednesday, .friday])
+        XCTAssertEqual(owner.settings.testWeekStart, LocalDate(2026, 10, 12), "owner's dates untouched")
+    }
+
+    func testStartLightInKilogramsOnTwoDays() async throws {
+        let store = AppStore(repository: InMemoryRepository(), clock: { self.monday })
+        store.load()
+        var c = AppStore.OnboardingChoices()
+        c.name = "Sam"
+        c.unit = .kg
+        c.schedule = [.tuesday, .friday]
+        c.lifts = [.backSquat, .deadlift, .pushPress]
+        store.completeOnboarding(c)
+        XCTAssertFalse(store.needsOnboarding)
+        XCTAssertEqual(store.settings.greetingName, "Sam")
+        XCTAssertEqual(store.unit, .kg)
+        XCTAssertEqual(store.settings.rotation.lifts, [.backSquat, .deadlift, .pushPress])
+        XCTAssertEqual(store.calendar.position(on: store.today).block, 1, "no test week: block 1 starts now")
+        XCTAssertEqual(WeightUnit.kg.fromPounds(store.liftPrograms[.backSquat]!.trainingMax), 30, accuracy: 1e-6)
+        XCTAssertEqual(WeightUnit.kg.fromPounds(store.liftPrograms[.pushPress]!.trainingMax), 20, accuracy: 1e-6)
+        await store.prepare()
+        let next = try XCTUnwrap(store.nextWorkout)
+        XCTAssertEqual(next.date, LocalDate(2026, 10, 20), "first Tuesday")
+        XCTAssertEqual(next.mainLift, store.settings.rotation.lift(for: next.date))
+    }
+
+    func testManualMaxesAndTestWeek() {
+        let store = AppStore(repository: InMemoryRepository(), clock: { self.monday })
+        store.load()
+        var c = AppStore.OnboardingChoices()
+        c.start = .manual([.deadlift: 185])
+        store.completeOnboarding(c)
+        XCTAssertEqual(store.liftPrograms[.deadlift]?.trainingMax, 195)
+        let other = AppStore(repository: InMemoryRepository(), clock: { self.monday })
+        other.load()
+        var t = AppStore.OnboardingChoices()
+        t.start = .testWeek
+        other.completeOnboarding(t)
+        XCTAssertEqual(other.settings.testWeekStart, LocalDate(2026, 10, 26))
+        XCTAssertEqual(other.calendar.position(on: LocalDate(2026, 10, 28)).phase, .test)
+    }
+
+    func testCSVImportThroughTheStore() async throws {
+        let store = AppStore(repository: InMemoryRepository(), clock: { self.monday })
+        store.load()
+        let csv = "date,lift,set,reps,weight,unit\n2026-10-12,Deadlift,1,5,185,lb\n2026-10-12,Deadlift,2,5,195,lb\n"
+        let msg = try await store.importFile(Data(csv.utf8))
+        XCTAssertTrue(msg.hasPrefix("Imported 1 of 1 workouts: 1 done"), msg)
+        XCTAssertEqual(store.doneWorkouts.first?.strengthSection?.items.first?.setLogs.map(\.weight), [185, 195])
+    }
+
+    func testDeleteAllDataReturnsToOnboarding() {
+        let store = AppStore(repository: InMemoryRepository(StoredData(workouts: [PlannedWorkout(date: LocalDate(2026, 10, 5), status: .done)])),
+                             clock: { self.monday })
+        store.load()
+        XCTAssertFalse(store.needsOnboarding)
+        store.deleteAllData()
+        XCTAssertTrue(store.needsOnboarding)
     }
 }
