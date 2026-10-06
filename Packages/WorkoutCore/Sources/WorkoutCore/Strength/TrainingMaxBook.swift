@@ -10,11 +10,15 @@ public enum TrainingMaxBook {
     public static func programs(asOf date: LocalDate, current: [Lift: LiftProgram], history: [PlannedWorkout],
                                 calendar: ProgramCalendar, barWeight: Double = 45) -> [Lift: LiftProgram] {
         let pos = calendar.position(on: date)
-        let fallback = TrainingMax.resolve(programs: current.mapValues(\.trainingMax), history: history.filter { $0.date < date },
+        // History-based estimates are never "sticky": they are recomputed from
+        // the current history (e.g. right after an import). Test, manual and
+        // progression values are kept.
+        let fixed = current.filter { $0.value.source != .history }
+        let fallback = TrainingMax.resolve(programs: fixed.mapValues(\.trainingMax), history: history.filter { $0.date < date },
                                            barWeight: barWeight)
         var out: [Lift: LiftProgram] = [:]
         for lift in Lift.allCases {
-            var program = current[lift] ?? LiftProgram(lift: lift, trainingMax: fallback[lift]!, source: .history)
+            var program = fixed[lift] ?? LiftProgram(lift: lift, trainingMax: fallback[lift]!, source: .history)
             let startBlock = program.blockStartDate.map { calendar.position(on: $0).block } ?? 0
             if pos.block > startBlock {
                 for b in (startBlock + 1)...pos.block {

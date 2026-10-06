@@ -69,7 +69,13 @@ public enum Lift: String, CaseIterable, Codable, Sendable, Comparable {
 
     /// Matches canonical movement names from the coach's sheet ("Hang Power Clean").
     public init?(movementName: String) {
-        let key = movementName.trimmingCharacters(in: .whitespaces).lowercased()
+        var key = movementName.trimmingCharacters(in: .whitespaces).lowercased()
+        // Plural forms from the sheet ("Front Squats", "Hang Power Cleans").
+        if key.hasSuffix("es"), Lift.allCases.contains(where: { $0.displayName.lowercased() == String(key.dropLast(2)) }) {
+            key = String(key.dropLast(2))
+        } else if key.hasSuffix("s"), !Lift.allCases.contains(where: { $0.displayName.lowercased() == key }) {
+            key = String(key.dropLast())
+        }
         guard let lift = Lift.allCases.first(where: { $0.displayName.lowercased() == key || $0.movementID == key }) else {
             return nil
         }

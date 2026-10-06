@@ -11,7 +11,12 @@ final class HistoryImporterTests: XCTestCase {
     func testFixtureImport() throws {
         let r = try importFixture()
         XCTAssertEqual(r.workouts.count, 5)
-        XCTAssertEqual(r.skipped, 2) // invalid date + wrong type
+        XCTAssertEqual(r.total, 8)
+        XCTAssertEqual(r.skipped, 3) // future placeholder + invalid date + wrong type
+        XCTAssertEqual(r.skippedReasons, ["future-dated placeholder": 1, "record with an invalid date": 1, "invalid record": 1])
+        XCTAssertEqual(r.summary(), "Imported 5 of 8 workouts (skipped 3: 1 future-dated placeholder, 1 invalid record, 1 record with an invalid date).")
+        XCTAssertEqual(r.summary(imported: 2, alreadyPresent: 3),
+                       "Imported 2 of 8 workouts (skipped 3: 1 future-dated placeholder, 1 invalid record, 1 record with an invalid date; 3 already in your journal).")
         XCTAssertEqual(r.workouts.map(\.date.iso), ["2025-03-03", "2025-03-05", "2025-03-07", "2025-03-10", "2025-03-12"])
         XCTAssertEqual(r.workouts.map(\.status), [.done, .done, .excused, .done, .done])
         XCTAssertTrue(r.issues.contains { $0.message.contains("future-dated") })
@@ -71,6 +76,16 @@ final class HistoryImporterTests: XCTestCase {
         XCTAssertNil(HistoryImporter.parseScore(String(repeating: "9", count: 50), round: 1, format: .interval, limits: l, rng: &rng))
     }
 
+    func testLadderSchemeGivesPerSetReps() throws {
+        let json = """
+        [{"date": "2025-01-06", "sections": [{"kind": "strength", "items": [{"letter": null, "reps_scheme": "10-8-6-4-2", "movement": "Deadlift"}],
+          "logged_weights_lb": [85, 110, 135, 160, 185]}]}]
+        """
+        let w = try importer.importCoachHistory(Data(json.utf8)).workouts[0]
+        XCTAssertEqual(w.strengthSection?.items.first?.setLogs.map(\.reps), [10, 8, 6, 4, 2])
+        XCTAssertEqual(TrainingMax.fromHistory(.deadlift, workouts: [w]), TrainingMax.fromSet(weight: 185, reps: 2))
+    }
+
     func testDuplicateNoteIgnored() throws {
         let json = """
         [{"date": "2025-01-06", "sections": [{"kind": "strength", "athlete_note": "copied", "athlete_note_duplicate_of_previous_week": true,
@@ -112,6 +127,34 @@ final class HistoryImporterTests: XCTestCase {
         XCTAssertThrowsError(try HistoryImporter(limits: limits).importCoachHistory(Data(json.utf8))) { error in
             XCTAssertEqual(error as? ImportError, .tooManyRecords(count: 3, limit: 2))
         }
+    }
+
+    func testSummaryWithoutSkips() throws {
+        let json = "[{\"date\": \"2025-01-06\", \"sections\": [{\"kind\": \"warmup\", \"items\": []}]}]"
+        XCTAssertEqual(try importer.importCoachHistory(Data(json.utf8)).summary(), "Imported 1 of 1 workouts.")
+    }
+
+    func testOffProgramOnlyEntriesAreSkippedWithReason() throws {
+        let json = """
+        [{"date": "2025-01-06", "sections": [{"kind": "other", "raw": "bike ride", "items": []}]},
+         {"date": "2025-01-08", "sections": [{"kind": "strength", "items": [{"letter": "A", "reps": 5, "movement": "Front Squats"}],
+           "logged_weights_lb": [65, 85]}]}]
+        """
+        let r = try importer.importCoachHistory(Data(json.utf8))
+        XCTAssertEqual(r.skippedReasons, ["with no usable sections": 1])
+        // Plural movement names still map to the lift.
+        XCTAssertEqual(r.workouts.first?.mainLift, .frontSquat)
+        XCTAssertEqual(ProgressSeries.lift(.frontSquat, workouts: r.workouts).map(\.topWeight), [85])
+    }
+
+    /// Every imported strength session shows up in Progress (top set per session).
+    func testFixtureFeedsJournalAndProgress() throws {
+        let r = try importFixture()
+        XCTAssertEqual(r.workouts.filter { $0.status == .done }.count, 4)
+        XCTAssertEqual(ProgressSeries.lift(.backSquat, workouts: r.workouts).map(\.topWeight), [90])
+        XCTAssertEqual(ProgressSeries.lift(.deadlift, workouts: r.workouts).map(\.topWeight), [140])
+        XCTAssertEqual(ProgressSeries.lift(.hangPowerClean, workouts: r.workouts).map(\.topWeight), [65])
+        XCTAssertTrue(ProgressSeries.lift(.frontSquat, workouts: r.workouts).isEmpty, "out-of-range log was dropped")
     }
 
     func testRejectsMostlyInvalid() {

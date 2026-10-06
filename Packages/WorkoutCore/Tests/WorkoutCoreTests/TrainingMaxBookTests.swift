@@ -52,6 +52,23 @@ final class TrainingMaxBookTests: XCTestCase {
         XCTAssertEqual(c[.deadlift]?.trainingMax, 215)
     }
 
+    /// TMs estimated before any history existed are recomputed after an import.
+    func testHistoryEstimatesAreRecomputed() {
+        let stale: [Lift: LiftProgram] = Dictionary(uniqueKeysWithValues: Lift.allCases.map { ($0, LiftProgram(lift: $0, trainingMax: 65, source: .history)) })
+        let p = TrainingMaxBook.programs(asOf: LocalDate(2026, 10, 5), current: stale, history: history, calendar: cal)
+        XCTAssertEqual(p[.deadlift]?.trainingMax, 195)
+        XCTAssertEqual(p[.backSquat]?.trainingMax, 145)
+        XCTAssertEqual(p[.pushJerk]?.trainingMax, 65, "no history: default")
+        // Manual values are kept.
+        var manual = stale
+        manual[.deadlift] = LiftProgram(lift: .deadlift, trainingMax: 150, source: .manual)
+        XCTAssertEqual(TrainingMaxBook.programs(asOf: LocalDate(2026, 10, 5), current: manual, history: history, calendar: cal)[.deadlift]?.trainingMax, 150)
+        // Also inside block 1 (no test logged): a stale history estimate is refreshed.
+        var inBlock = stale
+        inBlock[.deadlift] = LiftProgram(lift: .deadlift, trainingMax: 65, blockStartDate: LocalDate(2026, 10, 19), blockWeek: 1, source: .history)
+        XCTAssertEqual(TrainingMaxBook.programs(asOf: LocalDate(2026, 10, 21), current: inBlock, history: history, calendar: cal)[.deadlift]?.trainingMax, 195)
+    }
+
     func testMissedDayBackfill() {
         let existing = [TestData.simple(LocalDate(2026, 10, 19), .done)]
         let missed = MissedDays.backfill(schedule: [.monday, .wednesday, .friday], from: LocalDate(2026, 10, 19),

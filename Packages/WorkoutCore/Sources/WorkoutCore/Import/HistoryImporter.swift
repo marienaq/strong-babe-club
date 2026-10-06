@@ -3,8 +3,36 @@ import Foundation
 public struct ImportResult: Sendable {
     public var workouts: [PlannedWorkout]
     public var issues: [ImportIssue]
-    /// Workouts that could not be used at all.
+    /// Records in the file that were not imported.
     public var skipped: Int
+    /// Why records were skipped, e.g. ["future-dated placeholder": 2].
+    public var skippedReasons: [String: Int] = [:]
+    /// Total records in the file.
+    public var total: Int = 0
+
+    /// "Imported 372 of 376 workouts (skipped 4: 2 future-dated placeholders, 2 with no usable sections)."
+    public func summary(imported: Int? = nil, alreadyPresent: Int = 0) -> String {
+        let n = imported ?? workouts.count
+        var text = "Imported \(n) of \(total) workouts"
+        var notes: [String] = []
+        if skipped > 0 {
+            let reasons = skippedReasons.sorted { ($0.value, $1.key) > ($1.value, $0.key) }
+                .map { "\($0.value) \($0.value == 1 ? $0.key : ImportResult.plural($0.key))" }
+            notes.append("skipped \(skipped): " + reasons.joined(separator: ", "))
+        }
+        if alreadyPresent > 0 { notes.append("\(alreadyPresent) already in your journal") }
+        if !notes.isEmpty { text += " (" + notes.joined(separator: "; ") + ")" }
+        return text + "."
+    }
+
+    static func plural(_ reason: String) -> String {
+        switch reason {
+        case "future-dated placeholder": return "future-dated placeholders"
+        case "invalid record": return "invalid records"
+        case "record with an invalid date": return "records with an invalid date"
+        default: return reason
+        }
+    }
 }
 
 /// Imports the coach-sheet history produced by `tools/import_sheet.py`.
@@ -37,30 +65,44 @@ public struct HistoryImporter: Sendable {
         var sanitizer = Sanitizer(limits: limits)
         var workouts: [PlannedWorkout] = []
         var skipped = 0
+        var invalid = 0
+        var reasons: [String: Int] = [:]
         var rng = SeededRandom(seed: 0x1_4B0)
         for (i, entry) in decoded.enumerated() {
             let path = "[\(i)]"
             guard let dto = entry.value else {
                 skipped += 1
+                invalid += 1
+                reasons["invalid record", default: 0] += 1
                 sanitizer.issues.append(ImportIssue(path: path, message: "not a valid workout (\(entry.error ?? "decode error"))"))
                 continue
             }
             // Future-dated rows are cloned placeholders from the sheet, not history.
             if dto.flags?.contains("future_date") == true {
+                skipped += 1
+                reasons["future-dated placeholder", default: 0] += 1
                 sanitizer.issues.append(ImportIssue(path: path, message: "future-dated placeholder, ignored"))
+                continue
+            }
+            if LocalDate(iso: dto.date).map(limits.dateRange.contains) != true {
+                skipped += 1
+                invalid += 1
+                reasons["record with an invalid date", default: 0] += 1
+                sanitizer.issues.append(ImportIssue(path: path, message: "invalid date"))
                 continue
             }
             if let w = map(dto, path: path, sanitizer: &sanitizer, rng: &rng, now: now) {
                 workouts.append(w)
             } else {
                 skipped += 1
+                reasons["with no usable sections", default: 0] += 1
             }
         }
-        if !decoded.isEmpty, Double(skipped) / Double(decoded.count) > limits.maxInvalidFraction {
-            throw ImportError.tooManyInvalid(invalid: skipped, total: decoded.count)
+        if !decoded.isEmpty, Double(invalid) / Double(decoded.count) > limits.maxInvalidFraction {
+            throw ImportError.tooManyInvalid(invalid: invalid, total: decoded.count)
         }
         workouts.sort { $0.date < $1.date }
-        return ImportResult(workouts: workouts, issues: sanitizer.issues, skipped: skipped)
+        return ImportResult(workouts: workouts, issues: sanitizer.issues, skipped: skipped, skippedReasons: reasons, total: decoded.count)
     }
 
     // MARK: Mapping
@@ -158,9 +200,12 @@ public struct HistoryImporter: Sendable {
             if weights.count > limits.maxSetsPerItem || weights.contains(where: { !$0.isFinite || !limits.weightRange.contains($0) || $0 <= 0 }) {
                 sanitizer.issues.append(ImportIssue(path: path + ".logged_weights_lb", message: "out-of-range weights, log dropped"))
             } else {
+                // Ladders ("10-8-6-4-2") give each set its own reps.
+                let scheme = (section.items[0].repsScheme ?? "").split(separator: "-").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+                    .filter { limits.repsRange.contains($0) && $0 > 0 }
                 let reps = section.items[0].reps ?? 5
                 section.items[0].setLogs = weights.enumerated().map { i, w in
-                    SetLog(id: UUID.seeded(&rng), setNumber: i + 1, reps: reps, weight: w)
+                    SetLog(id: UUID.seeded(&rng), setNumber: i + 1, reps: scheme.isEmpty ? reps : scheme[min(i, scheme.count - 1)], weight: w)
                 }
             }
         }
