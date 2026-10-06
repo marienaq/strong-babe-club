@@ -44,6 +44,7 @@ struct StrongBabeClubApp: App {
                 }
                 .task {
                     store.load()
+                    if let u = DebugRoute.units.flatMap(WeightUnit.init(rawValue:)) { store.switchUnits(to: u) }
                     await store.prepare()
                     if let format = DebugRoute.metabolicFormat { await store.debugForceMetabolic(format) }
                     switch DebugRoute.todayAction {

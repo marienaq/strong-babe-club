@@ -42,6 +42,8 @@ public enum Equipment: String, Codable, Sendable, CaseIterable {
 
 /// The owner's home gym. Everything is editable in Settings.
 public struct EquipmentInventory: Codable, Hashable, Sendable {
+    /// Unit of every weight in this inventory.
+    public var unit: WeightUnit
     public var hasBarbell: Bool
     public var barWeight: Double
     /// One entry per *pair* of plates (each pair loads one plate per side).
@@ -54,9 +56,10 @@ public struct EquipmentInventory: Codable, Hashable, Sendable {
     public var hasLowBar: Bool
     public var hasBike: Bool
 
-    public init(hasBarbell: Bool = true, barWeight: Double = 45, platePairs: [Double] = [2.5, 5, 10, 10, 15, 25, 25],
+    public init(unit: WeightUnit = .lb, hasBarbell: Bool = true, barWeight: Double = 45, platePairs: [Double] = [2.5, 5, 10, 10, 15, 25, 25],
                 dumbbells: [Double] = [10, 15, 20], kettlebells: [Double] = [22, 26, 35], medicineBall: Double? = 12,
                 boxHeights: [Int] = [24, 32], hasBench: Bool = true, hasLowBar: Bool = true, hasBike: Bool = false) {
+        self.unit = unit
         self.hasBarbell = hasBarbell
         self.barWeight = barWeight
         self.platePairs = platePairs
@@ -70,6 +73,27 @@ public struct EquipmentInventory: Codable, Hashable, Sendable {
     }
 
     public static let homeGym = EquipmentInventory()
+
+    enum CodingKeys: String, CodingKey {
+        case unit, hasBarbell, barWeight, platePairs, dumbbells, kettlebells, medicineBall, boxHeights, hasBench, hasLowBar, hasBike
+    }
+
+    /// Tolerant: inventories saved before units existed are pounds.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = EquipmentInventory()
+        unit = try c.decodeIfPresent(WeightUnit.self, forKey: .unit) ?? .lb
+        hasBarbell = try c.decodeIfPresent(Bool.self, forKey: .hasBarbell) ?? d.hasBarbell
+        barWeight = try c.decodeIfPresent(Double.self, forKey: .barWeight) ?? d.barWeight
+        platePairs = try c.decodeIfPresent([Double].self, forKey: .platePairs) ?? d.platePairs
+        dumbbells = try c.decodeIfPresent([Double].self, forKey: .dumbbells) ?? d.dumbbells
+        kettlebells = try c.decodeIfPresent([Double].self, forKey: .kettlebells) ?? d.kettlebells
+        medicineBall = try c.decodeIfPresent(Double.self, forKey: .medicineBall)
+        boxHeights = try c.decodeIfPresent([Int].self, forKey: .boxHeights) ?? d.boxHeights
+        hasBench = try c.decodeIfPresent(Bool.self, forKey: .hasBench) ?? d.hasBench
+        hasLowBar = try c.decodeIfPresent(Bool.self, forKey: .hasLowBar) ?? d.hasLowBar
+        hasBike = try c.decodeIfPresent(Bool.self, forKey: .hasBike) ?? d.hasBike
+    }
 
     public var available: Set<Equipment> {
         var s: Set<Equipment> = [.bodyweight]
@@ -176,6 +200,16 @@ public struct PlannerSettings: Codable, Hashable, Sendable {
     }
 
     public static let `default` = PlannerSettings()
+
+    public var units: WeightUnit { equipment.unit }
+
+    /// Switches units: loads that unit's preset gym (kept as-is if already in it).
+    public func switchingUnits(to unit: WeightUnit) -> PlannerSettings {
+        guard unit != equipment.unit else { return self }
+        var s = self
+        s.equipment = EquipmentInventory.preset(unit)
+        return s
+    }
 
     public var greetingName: String {
         let n = displayName.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -109,9 +109,9 @@ struct FinishView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("strength").hand(20, color: Palette.tangerineDeep)
                     Text("top set").bodyText(13, .bold, color: Palette.muted)
-                    Text(strength.map { "\(formatPounds($0.top)) lb" } ?? "–").bodyText(24, .heavy)
+                    Text(strength.map { store.label($0.top) } ?? "–").bodyText(24, .heavy)
                     Text("total lifted").bodyText(13, .bold, color: Palette.muted).padding(.top, 4)
-                    Text(strength.map { "\($0.total.formatted(.number.grouping(.automatic))) lb" } ?? "–").bodyText(20, .heavy)
+                    Text(strength.map { "\(store.unit.fromPounds($0.total).formatted(.number.grouping(.automatic).precision(.fractionLength(0)))) \(store.unit.symbol)" } ?? "–").bodyText(20, .heavy)
                 }
             }
             .overlay(alignment: .topTrailing) {

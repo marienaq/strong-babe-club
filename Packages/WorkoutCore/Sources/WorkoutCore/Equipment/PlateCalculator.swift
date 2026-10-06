@@ -14,7 +14,7 @@ public struct PlateLoadout: Hashable, Sendable {
     }
 
     /// "105 lb = bar + 25 + 5 each side"
-    public var sentence: String { "\(formatPounds(total)) lb = \(description)" }
+    public var sentence: String { "\(formatPounds(total)) \(WeightUnit.current.symbol) = \(description)" }
 }
 
 public struct RoundedLoad: Hashable, Sendable {
@@ -120,10 +120,12 @@ public struct PlateCeilingWarning: Hashable, Sendable {
     public let blocksAway: Int
     public let projectedOneRepMax: Double
     public let maxLoadable: Double
+    /// Unit the numbers are in (captured when forecast).
+    public var unit: WeightUnit = WeightUnit.current
 
     public var message: String {
         let when = blocksAway == 0 ? "already" : "in about \(blocksAway) block\(blocksAway == 1 ? "" : "s")"
-        return "\(lift.displayName) may pass your \(formatPounds(maxLoadable)) lb plate limit \(when). Time to get more plates."
+        return "\(lift.displayName) may pass your \(formatWeight(maxLoadable)) \(unit.symbol) plate limit \(when). Time to get more plates."
     }
 
     /// Projects each lift's estimated 1RM (TM / 0.9) forward with the per-block

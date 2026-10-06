@@ -149,7 +149,7 @@ struct JournalEntry: View {
                 if w.status == .excused {
                     Text("sick day").bodyText(16, .heavy, color: Palette.muted)
                 } else {
-                    (Text(w.mainLift?.displayName ?? w.strengthSection?.items.first?.movementName ?? "Workout") + Text(top.map { " · top \(formatPounds($0))" } ?? "").foregroundColor(Palette.muted))
+                    (Text(w.mainLift?.displayName ?? w.strengthSection?.items.first?.movementName ?? "Workout") + Text(top.map { " · top \(store.fmt($0))" } ?? "").foregroundColor(Palette.muted))
                         .bodyText(16, .heavy)
                     if let m = w.metabolicSection {
                         let scores = m.roundLogs.map { r in r.timeSec.map(formatClock) ?? r.rounds.map { "\($0)+\(r.reps ?? 0)" } ?? "\(r.reps ?? 0)" }
@@ -195,6 +195,7 @@ struct JournalEntry: View {
 @MainActor
 struct WorkoutDetailView: View {
     var workout: PlannedWorkout
+    @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -208,7 +209,7 @@ struct WorkoutDetailView: View {
                             VStack(alignment: .leading) {
                                 Text("\(item.letter): \(item.displayLine)")
                                 if !item.setLogs.isEmpty {
-                                    Text(item.setLogs.map { "\($0.reps)×\(formatPounds($0.weight))" }.joined(separator: ", "))
+                                    Text(item.setLogs.map { (l: SetLog) -> String in "\(l.reps)×\(store.label(l.weight))" }.joined(separator: ", "))
                                         .font(.caption).foregroundStyle(.secondary)
                                 }
                             }

@@ -110,6 +110,12 @@ public struct LiftPoint: Hashable, Sendable {
     public var date: LocalDate
     public var topWeight: Double
     public var volume: Double
+
+    public init(date: LocalDate, topWeight: Double, volume: Double) {
+        self.date = date
+        self.topWeight = topWeight
+        self.volume = volume
+    }
 }
 
 public struct BenchmarkRow: Hashable, Sendable {

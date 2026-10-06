@@ -40,6 +40,12 @@ final class AppStore {
     var now: Date { clock() }
     var today: LocalDate { LocalDate.today(clock()) }
     var calendar: ProgramCalendar { settings.calendar }
+    /// Display/entry unit. Stored weights are canonical pounds.
+    var unit: WeightUnit { settings.units }
+    /// "135" or "61.2" for a canonical weight.
+    func fmt(_ pounds: Double) -> String { unit.format(pounds: pounds) }
+    /// "135 lb" or "61.2 kg".
+    func label(_ pounds: Double) -> String { unit.label(pounds: pounds) }
     var visibleWorkouts: [PlannedWorkout] { workouts.filter { !$0.isDeleted } }
 
     // MARK: Loading
@@ -166,8 +172,10 @@ final class AppStore {
     }
 
     func plateCeilingWarnings() -> [PlateCeilingWarning] {
-        PlateCeilingWarning.forecast(trainingMaxes: liftPrograms.mapValues(\.trainingMax),
-                                     calculator: PlateCalculator(inventory: settings.equipment))
+        WeightUnit.$current.withValue(unit) {
+            PlateCeilingWarning.forecast(trainingMaxes: liftPrograms.mapValues { unit.fromPounds($0.trainingMax) },
+                                         calculator: PlateCalculator(inventory: settings.equipment))
+        }
     }
 
     func stickerContext(for w: PlannedWorkout) -> StickerContext {
@@ -386,16 +394,30 @@ final class AppStore {
 
     // MARK: Settings, goals, benchmarks
 
+    /// Switch lb/kg: loads that unit's preset gym; TMs and goals are
+    /// re-rounded to the new unit's step. Logged history is untouched.
+    func switchUnits(to new: WeightUnit) {
+        guard new != unit else { return }
+        var s = settings.switchingUnits(to: new)
+        s.displayName = settings.displayName
+        updateSettings(s)
+        liftPrograms = liftPrograms.mapValues { var p = $0; p.trainingMax = new.rounded(pounds: p.trainingMax); return p }
+        goals = goals.map { var g = $0; g.targetWeight = new.rounded(pounds: g.targetWeight); return g }
+        persist { try repo.save(liftPrograms: Array(liftPrograms.values).sorted { $0.lift < $1.lift }) }
+        persist { try repo.save(goals: goals) }
+    }
+
     func updateSettings(_ s: PlannerSettings) {
         settings = s.sanitized()
         persist { try repo.save(settings: settings) }
         Task { await ensurePlan(for: nextPlanDate(after: today)) }
     }
 
+    /// `tm` in canonical pounds; re-rounded to the display unit's step.
     func setTrainingMax(_ lift: Lift, _ tm: Double) {
         guard tm.isFinite, (20...1000).contains(tm) else { return }
         var p = liftPrograms[lift] ?? LiftProgram(lift: lift, trainingMax: tm)
-        p.trainingMax = tm.rounded(toNearestFive: true)
+        p.trainingMax = unit.rounded(pounds: tm)
         p.source = .manual
         liftPrograms[lift] = p
         persist { try repo.save(liftPrograms: Array(liftPrograms.values).sorted { $0.lift < $1.lift }) }
@@ -555,6 +577,3 @@ enum StoreError: Error, CustomStringConvertible {
     }
 }
 
-private extension Double {
-    func rounded(toNearestFive: Bool) -> Double { (self / 5).rounded() * 5 }
-}

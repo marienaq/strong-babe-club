@@ -104,7 +104,7 @@ struct StrengthSectionView: View {
             return RecentHistory.liftSessions(lift, before: workout.date, in: store.visibleWorkouts).map { s in
                 HistoryPanel.Row(id: "\(lift.rawValue)-\(s.date.iso)", date: s.date.shortDisplay,
                                  title: section.items.count > 1 ? lift.displayName : nil,
-                                 detail: s.sets.map { "\(formatPounds($0.weight)) × \($0.reps)" }.joined(separator: " · "))
+                                 detail: s.sets.map { "\(store.fmt($0.weight)) × \($0.reps)" }.joined(separator: " · "))
             }
         }.flatMap { $0 }
     }
@@ -137,8 +137,8 @@ struct StrengthSectionView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(snap.isFinished ? "all sets done!" : timer.isRunning ? "set \(nextSet) starts soon" : "log set 1 to start")
                         .hand(22)
-                    if let upcoming, let load = calc.loadout(for: upcoming.weight) {
-                        Text(load.sentence).bodyText(13, .semibold, color: Palette.muted)
+                    if let upcoming, let load = calc.loadout(for: store.unit.fromPounds(upcoming.weight)) {
+                        Text("\(store.label(upcoming.weight)) = \(load.description)").bodyText(13, .semibold, color: Palette.muted)
                     }
                 }
                 Spacer(minLength: 0)
@@ -163,7 +163,7 @@ struct StrengthSectionView: View {
                         Text("set").frame(width: 34, alignment: .leading)
                         Text("reps").frame(width: 40, alignment: .leading)
                         Text("last time").frame(maxWidth: .infinity, alignment: .leading)
-                        Text("lb").frame(width: 74)
+                        Text(store.unit.symbol).frame(width: 74)
                         Text("").frame(width: 44)
                     }
                     .hand(17, color: Palette.muted)
@@ -190,12 +190,12 @@ struct StrengthSectionView: View {
         let lastW = last?.sets.first { $0.setNumber == p.setNumber }?.weight
         Text("\(p.setNumber)").hand(24, color: logged == nil ? Palette.faint : Palette.ink).frame(width: 34, height: 44)
         Text("×\(p.reps)").bodyText(16, .bold, color: Palette.muted).frame(width: 40, alignment: .leading)
-        Text(lastW.map(formatPounds) ?? "–").hand(19, .semibold, color: Palette.faint).frame(maxWidth: .infinity, alignment: .leading)
+        Text(lastW.map(store.fmt) ?? "–").hand(19, .semibold, color: Palette.faint).frame(maxWidth: .infinity, alignment: .leading)
         if let logged {
-            Text(formatPounds(logged.weight)).hand(27).frame(width: 74)
+            Text(store.fmt(logged.weight)).hand(27).frame(width: 74)
                 .accessibilityIdentifier("logged-\(item.letter)-\(p.setNumber)")
         } else {
-            TextField(formatPounds(p.weight), text: Binding(get: { weights[key] ?? "" }, set: { weights[key] = $0 }))
+            TextField(store.fmt(p.weight), text: Binding(get: { weights[key] ?? "" }, set: { weights[key] = $0 }))
                 .font(Typeface.hand(26))
                 .multilineTextAlignment(.center)
                 .numberKeyboard()
@@ -210,7 +210,7 @@ struct StrengthSectionView: View {
         }
         Button {
             if let logged {
-                weights[key] = formatPounds(logged.weight)
+                weights[key] = store.fmt(logged.weight)
                 store.unlogSet(workout: workout.id, section: section.id, item: item.id, setNumber: p.setNumber)
             } else {
                 log(item: item, planned: p, typed: weights[key])
@@ -245,8 +245,9 @@ struct StrengthSectionView: View {
     }
 
     func log(item: SectionItem, planned p: PlannedSet, typed: String?) {
+        // Typed in the display unit; stored as canonical pounds.
         let parsed = typed.flatMap { Double($0.replacingOccurrences(of: ",", with: ".")) }
-        let weight = parsed.flatMap { $0.isFinite && $0 >= 0 && $0 <= 1000 ? $0 : nil } ?? p.weight
+        let weight = parsed.flatMap { $0.isFinite && $0 >= 0 && $0 <= 1000 ? store.unit.toPounds($0) : nil } ?? p.weight
         store.logSet(workout: workout.id, section: section.id, item: item.id, setNumber: p.setNumber, reps: p.reps, weight: weight)
         Haptics.play(.tap)
         // Start the countdown to the next set if the clock isn't running yet.

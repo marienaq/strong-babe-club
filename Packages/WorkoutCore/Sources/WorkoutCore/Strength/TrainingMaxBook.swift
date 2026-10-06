@@ -15,7 +15,7 @@ public enum TrainingMaxBook {
         // progression values are kept.
         let fixed = current.filter { $0.value.source != .history }
         let fallback = TrainingMax.resolve(programs: fixed.mapValues(\.trainingMax), history: history.filter { $0.date < date },
-                                           barWeight: barWeight)
+                                           barWeight: max(barWeight, 45))
         var out: [Lift: LiftProgram] = [:]
         for lift in Lift.allCases {
             var program = fixed[lift] ?? LiftProgram(lift: lift, trainingMax: fallback[lift]!, source: .history)

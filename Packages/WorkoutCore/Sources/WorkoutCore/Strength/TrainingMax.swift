@@ -45,7 +45,7 @@ public enum TrainingMax {
 
     /// Resolves the TM for each lift: explicit program first, then history,
     /// then a conservative empty-bar default.
-    public static func resolve(programs: [Lift: Double], history: [PlannedWorkout], barWeight: Double) -> [Lift: Double] {
+    public static func resolve(programs: [Lift: Double], history: [PlannedWorkout], barWeight: Double, extra: Double = 20) -> [Lift: Double] {
         var out: [Lift: Double] = [:]
         for lift in Lift.allCases {
             if let tm = programs[lift], tm > 0 {
@@ -53,7 +53,7 @@ public enum TrainingMax {
             } else if let tm = fromHistory(lift, workouts: history) {
                 out[lift] = tm
             } else {
-                out[lift] = max(barWeight, 45) + 20
+                out[lift] = barWeight + extra
             }
         }
         return out

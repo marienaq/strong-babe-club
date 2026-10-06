@@ -71,7 +71,21 @@ public struct RulesWorkoutPlanner: WorkoutPlanner {
 
     // MARK: - Planning
 
+    /// Plans in the gym's unit (weights in requests and results are
+    /// canonical pounds; a kg gym is converted in and out).
     public func makePlan(_ r: PlanRequest) throws -> PlannedWorkout {
+        let unit = r.settings.equipment.unit
+        guard unit != .lb else { return try WeightUnit.$current.withValue(.lb) { try makePlanInUnit(r) } }
+        let toUnit = unit.fromPounds(1)
+        var inUnit = r
+        inUnit.history = r.history.map { $0.scalingWeights(by: toUnit) }
+        inUnit.trainingMaxes = r.trainingMaxes.mapValues { $0 * toUnit }
+        inUnit.benchmarks = r.benchmarks.map { var b = $0; b.template = b.template.scalingWeights(by: toUnit); return b }
+        let planned = try WeightUnit.$current.withValue(unit) { try makePlanInUnit(inUnit) }
+        return planned.scalingWeights(by: unit.toPounds(1))
+    }
+
+    func makePlanInUnit(_ r: PlanRequest) throws -> PlannedWorkout {
         let settings = r.settings.sanitized()
         let history = r.history.filter { $0.date < r.date && !$0.isDeleted }.sorted { $0.date < $1.date }
         var ctx = Context(request: r, settings: settings, history: history, library: library)
@@ -121,7 +135,8 @@ public struct RulesWorkoutPlanner: WorkoutPlanner {
             self.snapper = ImplementSnapper(inventory: settings.equipment)
             self.equipment = settings.equipment.available
             self.trainingMaxes = TrainingMax.resolve(programs: request.trainingMaxes, history: history,
-                                                    barWeight: settings.equipment.barWeight)
+                                                    barWeight: settings.equipment.barWeight,
+                                                    extra: settings.equipment.unit == .kg ? 10 : 20)
             let lift = position.isTestWeek ? rotation.testLifts(for: request.date).0 : rotation.lift(for: request.date)
             self.coachNote = CoachNoteSelector.select(history: history, today: request.date, todaysLift: lift,
                                                       schedule: settings.sortedSchedule, breaks: settings.breaks)
@@ -209,7 +224,7 @@ public struct RulesWorkoutPlanner: WorkoutPlanner {
                                                 input: StrengthAdjustmentInput(), rampStart: (lastTop ?? tm) * 0.5)
                 if let lastTop {
                     ctx.reason(.strength, "test.ramp_from_history",
-                               "\(lift.displayName) warm-up sets start at 50% of your last top set (\(formatPounds(lastTop)) lb).")
+                               "\(lift.displayName) warm-up sets start at 50% of your last top set (\(formatPounds(lastTop)) \(WeightUnit.current.symbol)).")
                 }
                 if i == 0 { tmUsed = plan.trainingMax }
                 items.append(SectionItem(id: UUID.seeded(&rng), letter: i == 0 ? "A" : "B", movementID: lift.movementID,
@@ -482,7 +497,8 @@ public struct RulesWorkoutPlanner: WorkoutPlanner {
     func makeItem(_ m: Movement, letter: String, reps: Int?, ctx: Context, rng: inout SeededRandom, weightShift: Int,
                   notes: inout [String]) -> SectionItem {
         var item = SectionItem(id: UUID.seeded(&rng), letter: letter, movementID: m.id, movementName: m.name, reps: reps)
-        guard let w = m.defaultWeight else {
+        // Library defaults are in pounds; the planner works in the gym's unit.
+        guard let w = m.defaultWeight.map({ ctx.settings.equipment.unit.fromPounds($0) }) else {
             if m.implement == .box, let h = ctx.settings.equipment.defaultBoxHeight { item.weightLabel = "\(h)\" box" }
             return item
         }
@@ -506,11 +522,12 @@ public struct RulesWorkoutPlanner: WorkoutPlanner {
         case .medicineBall:
             if let ball = ctx.settings.equipment.medicineBall {
                 item.prescribedWeight = ball
-                item.weightLabel = "\(formatPounds(ball)) lb ball"
+                item.weightLabel = "\(formatPounds(ball)) \(WeightUnit.current.symbol) ball"
             }
         case .barbell:
+            let w = ctx.settings.equipment.unit == .kg ? max(2.5, w.rounded(toNearest: 2.5)) : w
             item.prescribedWeight = w
-            item.weightLabel = "\(formatPounds(w)) lb plate"
+            item.weightLabel = "\(formatPounds(w)) \(WeightUnit.current.symbol) plate"
         default:
             break
         }

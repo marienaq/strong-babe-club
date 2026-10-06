@@ -76,7 +76,9 @@ struct ProgressScreen: View {
         // Full history: every session's top set (imported and logged in the app).
         let lift = selectedLift
         let metric: ChartMetric = mode == .volume ? .volume : .topSet
+        let factor = store.unit.fromPounds(1)
         let sessions = ProgressSeries.lift(lift, workouts: store.visibleWorkouts)
+            .map { LiftPoint(date: $0.date, topWeight: $0.topWeight * factor, volume: $0.volume * factor) }
         let range = ChartRange(rawValue: rangeRaw) ?? .threeMonths
         let color = Self.liftColors[lift] ?? Palette.tangerine
         return Group {
@@ -189,13 +191,13 @@ struct ProgressScreen: View {
                 Spacer()
                 Button { showNewGoal = true } label: { Text.caveat("+ new goal").hand(20, color: Palette.berry) }
             }
-            if store.goals.isEmpty { Text("Set a goal, like Deadlift 200 lb by Jan 15.").hand(18, color: Palette.muted) }
+            if store.goals.isEmpty { Text("Set a goal, like Deadlift \(store.unit == .kg ? "90 kg" : "200 lb") by Jan 15.").hand(18, color: Palette.muted) }
             ForEach(store.goals) { g in
                 let p = ProgressSeries.goal(g, workouts: store.visibleWorkouts)
                 let color = Self.liftColors[g.lift] ?? Palette.sky
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Text("\(g.lift.displayName) \(formatPounds(g.targetWeight)) lb").bodyText(14, .heavy)
+                        Text("\(g.lift.displayName) \(store.label(g.targetWeight))").bodyText(14, .heavy)
                         Spacer()
                         if let d = g.byDate { Text("by \(d.shortMonthName) \(d.day)").hand(18, color: Palette.muted) }
                     }
@@ -219,15 +221,19 @@ struct NewGoalSheet: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var lift: Lift = .deadlift
-    @State private var weight = 200.0
+    /// In the display unit.
+    @State private var weight: Double?
     @State private var hasDate = true
     @State private var date = Date().addingTimeInterval(90 * 86_400)
 
     var body: some View {
+        let unit = store.unit
+        let value = weight ?? (unit == .kg ? 90 : 200)
         NavigationStack {
             Form {
                 Picker("Lift", selection: $lift) { ForEach(Lift.allCases, id: \.self) { Text($0.displayName).tag($0) } }
-                Stepper("\(formatPounds(weight)) lb", value: $weight, in: 45...500, step: 5)
+                Stepper("\(formatWeight(value)) \(unit.symbol)", value: Binding(get: { value }, set: { weight = $0 }),
+                        in: unit == .kg ? 20...250 : 45...550, step: unit.roundingStep)
                 Toggle("Target date", isOn: $hasDate)
                 if hasDate { DatePicker("By", selection: $date, displayedComponents: .date) }
             }
@@ -236,7 +242,7 @@ struct NewGoalSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
-                        store.addGoal(Goal(lift: lift, targetWeight: weight, byDate: hasDate ? LocalDate.today(date) : nil))
+                        store.addGoal(Goal(lift: lift, targetWeight: unit.toPounds(value), byDate: hasDate ? LocalDate.today(date) : nil))
                         dismiss()
                     }
                 }

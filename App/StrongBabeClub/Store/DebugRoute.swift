@@ -53,6 +53,8 @@ enum DebugRoute {
     static var empty: Bool { flag("-sbc-empty") }
     /// Apply a "can't make it today" option: sick | skip | move.
     static var todayAction: String? { value("-sbc-today") }
+    /// (test mode) switch units before planning: lb | kg.
+    static var units: String? { value("-sbc-units") }
 }
 
 /// Preferences store: the real one normally, a throwaway suite in test mode.

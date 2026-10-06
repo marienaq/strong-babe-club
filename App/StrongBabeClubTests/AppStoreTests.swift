@@ -399,3 +399,37 @@ final class UnloggedImportTests: XCTestCase {
         XCTAssertEqual(store.visibleWorkouts.filter { $0.source.hasPrefix("import") }.count, 2)
     }
 }
+
+@MainActor
+final class UnitSwitchTests: XCTestCase {
+    func testSwitchingUnitsKeepsHistoryAndRoundsTMsAndGoals() async throws {
+        let history = [PlannedWorkout(date: LocalDate(2026, 10, 12), status: .done,
+                                      sections: [WorkoutSection(kind: .strength, format: .everyNMin, instructions: "", lift: .deadlift,
+                                                                items: [SectionItem(letter: "A", movementID: "deadlift", movementName: "Deadlift",
+                                                                                    setLogs: [SetLog(setNumber: 1, reps: 5, weight: 185)])])],
+                                      source: "import")]
+        let store = AppStore(repository: InMemoryRepository(StoredData(workouts: history, goals: [Goal(lift: .deadlift, targetWeight: 200)])),
+                             clock: { Date(timeIntervalSince1970: 1_792_414_800) })
+        store.load()
+        await store.prepare()
+        store.switchUnits(to: .kg)
+        XCTAssertEqual(store.unit, .kg)
+        XCTAssertEqual(store.settings.equipment.barWeight, 20)
+        // History is untouched (canonical pounds), shown in kg.
+        XCTAssertEqual(store.workouts.first { $0.source == "import" }?.strengthSection?.items[0].setLogs[0].weight, 185)
+        XCTAssertEqual(store.label(185), "83.9 kg")
+        // TM and goal re-rounded to 2.5 kg.
+        let tm = try XCTUnwrap(store.liftPrograms[.deadlift]?.trainingMax)
+        XCTAssertEqual(WeightUnit.kg.fromPounds(tm).truncatingRemainder(dividingBy: 2.5), 0, accuracy: 1e-6)
+        XCTAssertEqual(WeightUnit.kg.fromPounds(store.goals[0].targetWeight), 90, accuracy: 1e-6)
+        // Entering a TM in kg stores pounds.
+        store.setTrainingMax(.pushPress, WeightUnit.kg.toPounds(51))
+        XCTAssertEqual(WeightUnit.kg.fromPounds(store.liftPrograms[.pushPress]!.trainingMax), 50, accuracy: 1e-6)
+        // Next plan is in kg with loadable plates.
+        await store.ensurePlan(for: store.nextPlanDate(after: store.today))
+        let calc = PlateCalculator(inventory: store.settings.equipment)
+        for s in try XCTUnwrap(store.nextWorkout?.strengthSection?.items.first?.plannedSets) {
+            XCTAssertNotNil(calc.loadout(for: WeightUnit.kg.fromPounds(s.weight)))
+        }
+    }
+}

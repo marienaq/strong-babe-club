@@ -57,9 +57,12 @@ extension Double {
 }
 
 /// Formats pounds without a trailing ".0" ("102.5", "105").
+/// Exact amounts such as plate sizes keep up to two decimals ("1.25").
 public func formatPounds(_ value: Double) -> String {
     if value == value.rounded() { return String(Int(value)) }
-    return String(format: "%.1f", value)
+    var s = String(format: "%.2f", value)
+    while s.hasSuffix("0") { s.removeLast() }
+    return s
 }
 
 extension UUID {

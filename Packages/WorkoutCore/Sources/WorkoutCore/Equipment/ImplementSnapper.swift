@@ -15,10 +15,10 @@ public struct SnappedLoad: Hashable, Sendable {
     /// "2 × 20 lb" for dumbbell pairs, "35 lb KB", "12 lb ball".
     public func label(pair: Bool) -> String {
         switch implement {
-        case .dumbbell: return pair ? "2 × \(formatPounds(weight)) lb" : "\(formatPounds(weight)) lb DB"
-        case .kettlebell: return "\(formatPounds(weight)) lb KB"
-        case .medicineBall: return "\(formatPounds(weight)) lb ball"
-        default: return "\(formatPounds(weight)) lb"
+        case .dumbbell: return pair ? "2 × \(formatPounds(weight)) \(WeightUnit.current.symbol)" : "\(formatPounds(weight)) \(WeightUnit.current.symbol) DB"
+        case .kettlebell: return "\(formatPounds(weight)) \(WeightUnit.current.symbol) KB"
+        case .medicineBall: return "\(formatPounds(weight)) \(WeightUnit.current.symbol) ball"
+        default: return "\(formatPounds(weight)) \(WeightUnit.current.symbol)"
         }
     }
 }
@@ -51,7 +51,7 @@ public struct ImplementSnapper: Hashable, Sendable {
         if target > maxKB * 1.1, let r = reps {
             let scaled = Int((Double(r) * target / maxKB).rounded(.up))
             return SnappedLoad(implement: .kettlebell, weight: maxKB, reps: scaled,
-                               note: "Heavier than your kettlebells: \(formatPounds(maxKB)) lb for \(scaled) reps instead.")
+                               note: "Heavier than your kettlebells: \(formatPounds(maxKB)) \(WeightUnit.current.symbol) for \(scaled) reps instead.")
         }
         return SnappedLoad(implement: .kettlebell, weight: w, reps: reps, note: nil)
     }
@@ -68,15 +68,15 @@ public struct ImplementSnapper: Hashable, Sendable {
         }
         if kettlebellAlternative, let kb = ImplementSnapper.nearest(target, in: kettlebells), abs(kb - target) <= 5 {
             return SnappedLoad(implement: .kettlebell, weight: kb, reps: reps,
-                               note: "Heavier than your dumbbells, so it's a \(formatPounds(kb)) lb kettlebell.")
+                               note: "Heavier than your dumbbells, so it's a \(formatPounds(kb)) \(WeightUnit.current.symbol) kettlebell.")
         }
         guard let r = reps else {
             return SnappedLoad(implement: .dumbbell, weight: maxDB, reps: nil,
-                               note: "Heavier than your dumbbells: use \(formatPounds(maxDB)) lb and slow the tempo.")
+                               note: "Heavier than your dumbbells: use \(formatPounds(maxDB)) \(WeightUnit.current.symbol) and slow the tempo.")
         }
         let scaled = Int((Double(r) * target / maxDB).rounded(.up))
         return SnappedLoad(implement: .dumbbell, weight: maxDB, reps: scaled,
-                           note: "Heavier than your dumbbells: \(formatPounds(maxDB)) lb for \(scaled) reps instead.")
+                           note: "Heavier than your dumbbells: \(formatPounds(maxDB)) \(WeightUnit.current.symbol) for \(scaled) reps instead.")
     }
 
     /// One size lighter / heavier (used when metabolic ratings say too hard / too easy).

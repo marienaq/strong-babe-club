@@ -46,21 +46,39 @@ struct SettingsView: View {
                 } header: { Text("Limits") } footer: {
                     Text("Box jumps become step-ups, burpees become up/downs, and so on. Benchmarks with a swapped move are marked \"modified\".")
                 }
-                Section("Equipment") {
+                Section {
+                    Picker("Units", selection: Binding(get: { store.unit }, set: { u in
+                        store.switchUnits(to: u)
+                        draft = store.settings
+                    })) {
+                        Text("lb").tag(WeightUnit.lb)
+                        Text("kg").tag(WeightUnit.kg)
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("unitsPicker")
+                } header: { Text("Units") } footer: {
+                    Text("Switching loads a typical \(store.unit == .lb ? "kg" : "lb") gym you can edit below. Your logged history is kept exactly; it's just shown in the new unit.")
+                }
+                Section("Equipment (\(draft.equipment.unit.symbol))") {
+                    let u = draft.equipment.unit.symbol
                     Toggle("Barbell + plates", isOn: $draft.equipment.hasBarbell)
-                    Stepper("Bar: \(formatPounds(draft.equipment.barWeight)) lb", value: $draft.equipment.barWeight, in: 15...55, step: 5)
-                    NumberListField(title: "Plate pairs (lb)", values: $draft.equipment.platePairs, allowDuplicates: true)
-                    NumberListField(title: "Dumbbells (lb)", values: $draft.equipment.dumbbells)
-                    NumberListField(title: "Kettlebells (lb)", values: $draft.equipment.kettlebells)
+                    Picker("Bar", selection: $draft.equipment.barWeight) {
+                        ForEach(Array(Set(EquipmentInventory.barOptions(draft.equipment.unit) + [draft.equipment.barWeight])).sorted(by: >), id: \.self) {
+                            Text("\(formatWeight($0)) \(u)").tag($0)
+                        }
+                    }
+                    NumberListField(title: "Plate pairs (\(u))", values: $draft.equipment.platePairs, allowDuplicates: true)
+                    NumberListField(title: "Dumbbells (\(u))", values: $draft.equipment.dumbbells)
+                    NumberListField(title: "Kettlebells (\(u))", values: $draft.equipment.kettlebells)
                     NumberListField(title: "Boxes (in)", values: Binding(get: { draft.equipment.boxHeights.map(Double.init) },
                                                                         set: { draft.equipment.boxHeights = $0.map { Int($0) } }))
-                    Toggle("Medicine ball (12 lb)", isOn: Binding(get: { draft.equipment.medicineBall != nil },
-                                                                 set: { draft.equipment.medicineBall = $0 ? 12 : nil }))
+                    Toggle("Medicine ball (\(draft.equipment.unit == .kg ? "6 kg" : "12 lb"))", isOn: Binding(get: { draft.equipment.medicineBall != nil },
+                                                                 set: { draft.equipment.medicineBall = $0 ? (draft.equipment.unit == .kg ? 6 : 12) : nil }))
                     Toggle("Bench", isOn: $draft.equipment.hasBench)
                     Toggle("Bar for Australian pull-ups", isOn: $draft.equipment.hasLowBar)
                     Toggle("Bike", isOn: $draft.equipment.hasBike)
                     let calc = PlateCalculator(inventory: draft.equipment)
-                    Text("Heaviest barbell load: \(formatPounds(calc.maxLoadable)) lb · smallest jump \(formatPounds(calc.smallestStep)) lb")
+                    Text("Heaviest barbell load: \(formatWeight(calc.maxLoadable)) \(u) · smallest jump \(formatWeight(calc.smallestStep)) \(u)")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("Program") {
@@ -203,7 +221,7 @@ struct NumberListField: View {
                 .onSubmit(commit)
                 .onChange(of: text) { _, _ in commit() }
         }
-        .onAppear { text = values.map(formatPounds).joined(separator: ", ") }
+        .onAppear { text = values.map(formatWeight).joined(separator: ", ") }
     }
 
     func commit() {
@@ -220,20 +238,25 @@ struct TrainingMaxView: View {
     @Environment(AppStore.self) private var store
 
     var body: some View {
+        let unit = store.unit
         List {
             Section {
                 ForEach(Lift.allCases, id: \.self) { lift in
                     let p = store.liftPrograms[lift]
-                    Stepper(value: Binding(get: { p?.trainingMax ?? 45 }, set: { store.setTrainingMax(lift, $0) }), in: 45...600, step: 5) {
+                    let shown = unit.fromPounds(p?.trainingMax ?? unit.toPounds(unit == .kg ? 20 : 45))
+                    Stepper(value: Binding(get: { shown }, set: { store.setTrainingMax(lift, unit.toPounds($0)) }),
+                            in: (unit == .kg ? 20 : 45)...(unit == .kg ? 300 : 600), step: unit.roundingStep) {
                         VStack(alignment: .leading) {
                             Text(lift.displayName)
-                            Text("\(formatPounds(p?.trainingMax ?? 0)) lb · from \(p?.source.rawValue ?? "history")")
+                            Text("\(formatWeight(shown)) \(unit.symbol) · from \(p?.source.rawValue ?? "history")")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     }
                 }
             } footer: {
-                Text("Training max = 90% of your estimated 1-rep max. It goes up +10 lb (lower body) or +5 lb (presses, Olympic lifts) each block, or resets from the week-13 test, whichever is lower.")
+                Text(unit == .kg
+                     ? "Training max = 90% of your estimated 1-rep max. It goes up about 4.5 kg (lower body) or 2.5 kg (presses, Olympic lifts) each block, or resets from the week-13 test, whichever is lower."
+                     : "Training max = 90% of your estimated 1-rep max. It goes up +10 lb (lower body) or +5 lb (presses, Olympic lifts) each block, or resets from the week-13 test, whichever is lower.")
             }
         }
         .navigationTitle("Training maxes")
