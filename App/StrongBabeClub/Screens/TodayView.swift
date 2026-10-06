@@ -6,6 +6,7 @@ import WorkoutCore
 @MainActor
 struct TodayView: View {
     @Environment(AppStore.self) private var store
+    @AppStorage(Animal.storageKey) private var animal: Animal = .bear
     @State private var showWorkout = DebugRoute.open == "session" || DebugRoute.open == "finish"
     @State private var showWhy = DebugRoute.open == "why"
 
@@ -217,7 +218,7 @@ struct TodayView: View {
             if let lift = w.mainLift {
                 VStack(spacing: -4) {
                     BearView(lift: lift, size: 112)
-                    Text("bear says:\n\(lift.displayName.lowercased())!").hand(17).multilineTextAlignment(.center)
+                    Text("\(animal.rawValue) says:\n\(lift.displayName.lowercased())!").hand(17).multilineTextAlignment(.center)
                 }
                 .offset(x: 8)
             }

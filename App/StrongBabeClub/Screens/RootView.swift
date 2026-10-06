@@ -14,6 +14,7 @@ struct RootView: View {
         }
     }()
     @State private var showBears = DebugRoute.open == "bears"
+    @State private var showAnimals = DebugRoute.open == "animals"
 
     enum Tab: Hashable { case today, journal, progress, settings }
 
@@ -34,6 +35,7 @@ struct RootView: View {
         }
         .tint(Palette.tangerineActive)
         .fullScreen(isPresented: $showBears) { BearGallery().onTapGesture { showBears = false } }
+        .fullScreen(isPresented: $showAnimals) { AnimalGallery().onTapGesture { showAnimals = false } }
         .alert("Oops", isPresented: Binding(get: { store.lastError != nil }, set: { if !$0 { store.lastError = nil } })) {
             Button("OK", role: .cancel) { store.lastError = nil }
         } message: {

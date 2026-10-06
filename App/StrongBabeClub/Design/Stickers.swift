@@ -146,7 +146,14 @@ extension StickerID {
         }
     }
 
-    var displayName: String { StickerCatalog.definition(self).name }
+    /// "Squat bear" follows the chosen animal ("Squat fox").
+    var displayName: String {
+        if self == .bear {
+            let animal = AppDefaults.store.string(forKey: Animal.storageKey).flatMap(Animal.init(rawValue:)) ?? .bear
+            return "Squat \(animal.rawValue)"
+        }
+        return StickerCatalog.definition(self).name
+    }
 
     /// Shape on the sticker page, as in the mockup.
     var cornerRadius: CGFloat {

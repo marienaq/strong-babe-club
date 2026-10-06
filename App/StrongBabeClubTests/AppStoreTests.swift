@@ -436,3 +436,16 @@ final class UnitSwitchTests: XCTestCase {
         }
     }
 }
+
+@MainActor
+final class AnimalTests: XCTestCase {
+    func testTwelveAnimalsShareOneRig() {
+        XCTAssertEqual(Animal.allCases.count, 12)
+        XCTAssertEqual(Animal(rawValue: "bear"), .bear)
+        // The rig is animal-independent: same pose for every skin.
+        for lift in Lift.allCases {
+            XCTAssertEqual(BearPose.pose(for: lift, t: 0.4), BearPose.pose(for: lift, t: 0.4))
+        }
+        XCTAssertEqual(StickerID.bear.displayName.hasPrefix("Squat "), true)
+    }
+}

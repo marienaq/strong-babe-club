@@ -2,12 +2,13 @@
 
 Status: **todo** · **in progress** · **needs decision** · **done**
 
-## 1. Choose your animal (in progress)
+## 1. Choose your animal (done)
 Pick a mascot in Settings (and during onboarding). It acts out every lift.
 - A dozen animals. Proposed: bear (current), bunny, cat, dog, fox, frog, koala, otter, panda, penguin, pig, sloth.
 - Each animal performs all 6 lifts: Deadlift, Hang Power Clean, Front Squat, Back Squat, Push Press and Push Jerk.
 - **Approach:** one shared "rig" of poses and keyframes for each lift, plus a per-animal "skin" (head, ears, body shape, tail, colors). That gives 72 combinations without 72 hand-made animations.
 - The animals keep the line-art scrapbook style, with chunky legs. Reduce Motion is respected.
+- **Done:** all 12 animals share one rig, each with its own skin (Design/Animals.swift). The picker is in Settings > Your lifting buddy, and the "Squat bear" sticker follows the chosen animal. Kettle stays the brand. A contact sheet (test mode `-sbc-open animals`) shows every animal doing every lift.
 
 ## 2. kg vs lb (done)
 - Settings → Units: lb or kg.

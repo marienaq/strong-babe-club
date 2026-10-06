@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var confirmDelete = false
     @AppStorage(TimerSound.defaultsKey) private var timerSounds = true
     @AppStorage(TimerSound.packKey) private var soundPack: SoundPack = .boxing
+    @AppStorage(Animal.storageKey) private var animal: Animal = .bear
 
     var body: some View {
         NavigationStack {
@@ -23,6 +24,29 @@ struct SettingsView: View {
                     TextField("Display name (optional)", text: $draft.displayName)
                         .textContentType(.nickname)
                         .accessibilityHint("Used only for the greeting. Stays on this phone.")
+                }
+                Section {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
+                            ForEach(Animal.allCases) { a in
+                                Button { animal = a } label: {
+                                    VStack(spacing: 2) {
+                                        BearView(lift: .frontSquat, size: 64, frozenAt: 0.45, animal: a)
+                                        Text(a.displayName).font(Typeface.hand(16)).foregroundStyle(Palette.ink)
+                                    }
+                                    .padding(6)
+                                    .background(RoundedRectangle(cornerRadius: 14).fill(animal == a ? Palette.sunnyPale : .clear))
+                                    .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(animal == a ? Palette.sunny : .clear, lineWidth: 2))
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(a.displayName)
+                                .accessibilityAddTraits(animal == a ? .isSelected : [])
+                                .accessibilityIdentifier("animal-\(a.rawValue)")
+                            }
+                        }
+                    }
+                } header: { Text("Your lifting buddy") } footer: {
+                    Text("They act out every lift on Today and during workouts. Kettle stays your coach.")
                 }
                 Section("Schedule") {
                     ForEach(Weekday.allCases, id: \.self) { day in

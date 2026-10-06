@@ -1,34 +1,41 @@
 import SwiftUI
 import WorkoutCore
 
-/// The line-art bear that acts out the day's lift: one animation per lift,
+/// The line-art animal (bear by default) that acts out the day's lift: one animation per lift,
 /// driven by a 2.6 s loop over a tiny 2D skeleton (knee and elbow solved
 /// with two-bone IK). Chunky outlined limbs. Frozen in the start pose under
 /// Reduce Motion.
 struct BearView: View {
     var lift: Lift
     var size: CGFloat = 112
-    var fill: Color = Palette.paper
+    var fill: Color? = nil
     /// Fixed animation phase (0...1) for galleries/previews; nil = animate.
     var frozenAt: Double?
+    /// Override; otherwise the animal chosen in Settings.
+    var animal: Animal?
+    @AppStorage(Animal.storageKey) private var chosen: Animal = .bear
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var current: Animal { animal ?? chosen }
+    /// Only the bear uses the card's paper colour; others keep their fur.
+    var paper: Color? { current == .bear ? (fill ?? Palette.paper) : nil }
 
     static let period = 2.6
 
     var body: some View {
         Group {
             if let t = frozenAt ?? (reduceMotion ? 0 : nil) {
-                BearCanvas(pose: BearPose.pose(for: lift, t: t), fill: fill)
+                LifterCanvas(pose: BearPose.pose(for: lift, t: t), skin: current.skin, paperOverride: paper)
             } else {
                 TimelineView(.animation) { tl in
                     let t = tl.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.period) / Self.period
-                    BearCanvas(pose: BearPose.pose(for: lift, t: t), fill: fill)
+                    LifterCanvas(pose: BearPose.pose(for: lift, t: t), skin: current.skin, paperOverride: paper)
                 }
             }
         }
         .frame(width: size, height: size)
         .accessibilityElement()
-        .accessibilityLabel("Line-art bear doing a \(lift.displayName.lowercased())")
+        .accessibilityLabel("Line-art \(current.rawValue) doing a \(lift.displayName.lowercased())")
     }
 }
 
@@ -172,88 +179,6 @@ struct BearPose: Equatable {
         let base = CGPoint(x: p.x + ux * along, y: p.y + uy * along)
         // Perpendicular offset: for an upward leg (ankle -> hip) side +1 bends the knee forward.
         return CGPoint(x: base.x - uy * h * side, y: base.y + ux * h * side)
-    }
-}
-
-struct BearCanvas: View {
-    var pose: BearPose
-    var fill: Color
-
-    var body: some View {
-        let p = pose
-        Canvas { ctx, size in
-            ctx.scaleBy(x: size.width / 120, y: size.height / 120)
-            let ink = GraphicsContext.Shading.color(Palette.ink)
-            let paper = GraphicsContext.Shading.color(fill)
-            func limb(_ pts: [CGPoint]) -> Path {
-                var path = Path()
-                path.move(to: pts[0])
-                pts.dropFirst().forEach { path.addLine(to: $0) }
-                return path
-            }
-            func round(_ w: CGFloat) -> StrokeStyle { StrokeStyle(lineWidth: w, lineCap: .round, lineJoin: .round) }
-            func blob(_ c: CGPoint, _ rx: CGFloat, _ ry: CGFloat, fill f: GraphicsContext.Shading, line: CGFloat = 3) {
-                let e = Path(ellipseIn: CGRect(x: c.x - rx, y: c.y - ry, width: rx * 2, height: ry * 2))
-                ctx.fill(e, with: f)
-                ctx.stroke(e, with: ink, lineWidth: line)
-            }
-
-            // Floor
-            var floor = Path()
-            floor.move(to: CGPoint(x: 26, y: 109))
-            floor.addLine(to: CGPoint(x: 98, y: 109))
-            ctx.stroke(floor, with: ink, style: StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [1, 6]))
-
-            // Body + chunky legs: ink outline pass, then fill pass, so joints merge.
-            let leg = limb([p.hip, p.knee, p.ankle])
-            let foot = limb([p.ankle, p.toe])
-            let trunk = limb([p.hip, p.shoulder])
-            ctx.stroke(trunk, with: ink, style: round(27))
-            ctx.stroke(leg, with: ink, style: round(20))
-            ctx.stroke(foot, with: ink, style: round(12))
-            ctx.stroke(trunk, with: paper, style: round(22))
-            ctx.stroke(leg, with: paper, style: round(15))
-            ctx.stroke(foot, with: paper, style: round(7))
-            // Little tail
-            let rad = p.lean * .pi / 180
-            blob(CGPoint(x: p.hip.x - 10 * cos(rad) - 1, y: p.hip.y - 1 - 10 * sin(rad) * 0.3), 3.2, 3.2, fill: paper, line: 2.5)
-            // Belly patch
-            let mid = CGPoint(x: (p.hip.x + p.shoulder.x) / 2 + 5 * cos(rad), y: (p.hip.y + p.shoulder.y) / 2 + 5 * sin(rad))
-            ctx.fill(Path(ellipseIn: CGRect(x: mid.x - 4, y: mid.y - 6, width: 8, height: 12)), with: .color(Palette.bubblegum.opacity(0.35)))
-
-            func drawPlate() {
-            // Barbell end: orange plate (bar runs into the page)
-            let plate = Path(ellipseIn: CGRect(x: p.bar.x - 8.5, y: p.bar.y - 8.5, width: 17, height: 17))
-            ctx.fill(plate, with: .color(Palette.tangerine))
-            ctx.stroke(plate, with: ink, lineWidth: 2.5)
-            ctx.fill(Path(ellipseIn: CGRect(x: p.bar.x - 2.5, y: p.bar.y - 2.5, width: 5, height: 5)), with: ink)
-            }
-            func drawArm() {
-            // Arm (outlined, on top of the body)
-            let arm = limb([p.shoulder, p.elbow, p.hand])
-            ctx.stroke(arm, with: ink, style: round(11))
-            ctx.stroke(arm, with: paper, style: round(6.5))
-
-            }
-            func drawHead() {
-            // Head
-            let h = p.head
-            blob(CGPoint(x: h.x - 5, y: h.y - 10), 4.6, 4.6, fill: paper, line: 2.5)
-            blob(CGPoint(x: h.x + 6, y: h.y - 10), 4.6, 4.6, fill: paper, line: 2.5)
-            blob(h, 11, 11, fill: paper)
-            blob(CGPoint(x: h.x + 10, y: h.y + 3), 5, 3.6, fill: paper, line: 2.5)
-            ctx.fill(Path(ellipseIn: CGRect(x: h.x + 12.4, y: h.y + 0.4, width: 3.2, height: 3.2)), with: ink)
-            ctx.fill(Path(ellipseIn: CGRect(x: h.x + 2.4, y: h.y - 4.6, width: 3.2, height: 3.2)), with: ink)
-            ctx.fill(Path(ellipseIn: CGRect(x: h.x - 0.2, y: h.y + 1.8, width: 4.4, height: 4.4)), with: .color(Palette.bubblegum.opacity(0.8)))
-
-            }
-            // Bar on the back sits behind the head; otherwise the plate is in front.
-            if p.bar.x < p.shoulder.x - 2 && p.bar.y > p.shoulder.y - 12 {
-                drawArm(); drawPlate(); drawHead()
-            } else {
-                drawHead(); drawArm(); drawPlate()
-            }
-        }
     }
 }
 
