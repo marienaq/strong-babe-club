@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Scrapbook journal: Today</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&amp;family=Nunito:wght@500;700;800&amp;display=swap">
+<style>
+body{margin:0}
+@keyframes draw{from{stroke-dashoffset:400}to{stroke-dashoffset:0}}
+@keyframes slap{0%{opacity:0;transform:scale(1.7) rotate(var(--r))}60%{opacity:1;transform:scale(0.92) rotate(var(--r))}100%{opacity:1;transform:scale(1) rotate(var(--r))}}
+@keyframes jiggle{0%,76%,100%{transform:rotate(-1deg)}80%{transform:rotate(-4deg) scale(1.03)}84%{transform:rotate(2.5deg) scale(1.03)}88%{transform:rotate(-2.5deg)}92%{transform:rotate(0deg)}}
+@keyframes nudge{0%,100%{transform:translate(0,0)}50%{transform:translate(3px,4px)}}
+@keyframes swipe{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes pulse{0%,100%{transform:scale(1) rotate(var(--r))}50%{transform:scale(1.1) rotate(var(--r))}}
+.sb-draw{stroke-dasharray:400;animation:draw 1.1s ease-out .2s both}
+.sb-draw2{stroke-dasharray:400;animation:draw 1s ease-out 1.3s both}
+.sb-slap{animation:slap .45s cubic-bezier(.2,1.2,.4,1) both}
+.sb-go{animation:jiggle 3s ease-in-out 2s infinite}
+.sb-arrow{animation:nudge 1.6s ease-in-out infinite}
+.sb-swipe{transform-origin:left center;animation:swipe .6s ease-out 1.5s both}
+.sb-pulse{animation:pulse 1.4s ease-in-out 2s infinite}
+.sb-sticker{filter:drop-shadow(0 2px 2px rgba(43,27,61,0.22))}
+@media (prefers-reduced-motion: reduce){.sb-draw,.sb-draw2,.sb-slap,.sb-go,.sb-arrow,.sb-swipe,.sb-pulse{animation:none;stroke-dasharray:none}}
+</style>
+</helmet>
+<div style="position:relative;width:390px;height:844px;box-sizing:border-box;background-color:#FFF8EE;background-image:radial-gradient(#E8D9C8 1.2px, transparent 1.2px);background-size:18px 18px;color:#2B1B3D;font-family:'Nunito',system-ui,sans-serif;display:flex;flex-direction:column;overflow:hidden">
+  <div style="position:absolute;left:30px;top:0;bottom:0;width:2px;background:#FFC4D6"></div>
+
+  <div style="position:relative;flex-grow:1;display:flex;flex-direction:column;gap:10px;padding:50px 20px 8px 44px">
+    <div style="position:relative;display:flex;flex-direction:column">
+      <span style="font-family:'Caveat',cursive;font-size:22px;font-weight:600;color:#6E5F7E">Mon, Oct 5 · week B</span>
+      <h1 style="margin:0;font-size:30px;font-weight:800;letter-spacing:-0.01em">Hey, babe!</h1>
+      <svg width="160" height="12" viewBox="0 0 160 12" aria-hidden="true"><path class="sb-draw" d="M2 8C28 2 50 11 78 6S132 2 158 7" fill="none" stroke="#FF6B3D" stroke-width="4" stroke-linecap="round"></path></svg>
+      <span class="sb-slap sb-sticker" style="--r:10deg;position:absolute;right:-6px;top:-8px;width:72px;height:72px;border-radius:36px;background:#FF9EC0;border:3.5px solid #FFFFFF;box-sizing:border-box;display:flex;align-items:center;justify-content:center;animation-delay:.4s">
+        <svg width="44" height="46" viewBox="0 0 56 58" role="img" aria-label="Kettle sticker"><path d="M17 22C17 7 39 7 39 22" fill="none" stroke="#2B1B3D" stroke-width="5" stroke-linecap="round"></path><circle cx="28" cy="37" r="19" fill="#FFF4E8"></circle><circle cx="22" cy="36" r="2.8" fill="#2B1B3D"></circle><circle cx="34" cy="36" r="2.8" fill="#2B1B3D"></circle><path d="M24 42Q28 47 32 42" fill="none" stroke="#2B1B3D" stroke-width="2.2" stroke-linecap="round"></path><circle cx="18" cy="42" r="2.6" fill="#FF9EC0"></circle><circle cx="38" cy="42" r="2.6" fill="#FF9EC0"></circle></svg>
+      </span>
+    </div>
+
+    <section style="position:relative;background:#FFFFFF;padding:16px 14px 12px;transform:rotate(-1deg);box-shadow:0 3px 8px rgba(43,27,61,0.08);display:flex;flex-direction:column;gap:10px">
+      <span style="position:absolute;left:50%;top:-10px;margin-left:-40px;width:80px;height:20px;background:repeating-linear-gradient(45deg,#FFC94D 0 6px,#FFD978 6px 12px);opacity:0.85;transform:rotate(-3deg)"></span>
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <span style="font-family:'Caveat',cursive;font-size:24px;font-weight:700">my sticker page</span>
+        <span style="font-family:'Caveat',cursive;font-size:18px;font-weight:600;color:#6E5F7E">last 12 workouts</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;justify-items:center">
+        <sc-for list="{{stickers}}" as="s" hint-placeholder-count="12">
+          <div class="sb-slap sb-sticker" style="--r:{{s.rot}};width:40px;height:40px;border-radius:{{s.shape}};background:{{s.bg}};border:3px solid {{s.ring}};box-sizing:border-box;display:flex;align-items:center;justify-content:center;opacity:{{s.op}};animation-delay:{{s.delay}}">
+            <sc-if value="{{s.barbell}}" hint-placeholder-val="{{ false }}"><svg width="26" height="14" viewBox="0 0 54 28" aria-hidden="true"><rect x="2" y="12" width="50" height="4" rx="2" fill="#2B1B3D"></rect><rect x="9" y="3" width="7" height="22" rx="3.5" fill="#FFF4E8"></rect><rect x="38" y="3" width="7" height="22" rx="3.5" fill="#FFF4E8"></rect></svg></sc-if>
+            <sc-if value="{{s.kettle}}" hint-placeholder-val="{{ false }}"><svg width="22" height="24" viewBox="0 0 56 58" aria-hidden="true"><path d="M17 22C17 7 39 7 39 22" fill="none" stroke="#2B1B3D" stroke-width="6" stroke-linecap="round"></path><circle cx="28" cy="37" r="19" fill="#FFF4E8"></circle><circle cx="22" cy="36" r="3" fill="#2B1B3D"></circle><circle cx="34" cy="36" r="3" fill="#2B1B3D"></circle></svg></sc-if>
+            <sc-if value="{{s.dumbbell}}" hint-placeholder-val="{{ false }}"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><g transform="rotate(-35 12 12)"><rect x="4" y="11" width="16" height="2.4" rx="1.2" fill="#2B1B3D"></rect><rect x="3" y="7.5" width="4" height="9" rx="1.6" fill="#FFF4E8"></rect><rect x="17" y="7.5" width="4" height="9" rx="1.6" fill="#FFF4E8"></rect></g></svg></sc-if>
+            <sc-if value="{{s.star}}" hint-placeholder-val="{{ false }}"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.8 6 6.5.6-4.9 4.4 1.5 6.4L12 16.6 6.1 19.9l1.5-6.4L2.7 9.1l6.5-.6z" fill="#FFF4E8" stroke="#2B1B3D" stroke-width="1.5" stroke-linejoin="round"></path></svg></sc-if>
+            <sc-if value="{{s.missed}}" hint-placeholder-val="{{ false }}"><span style="font-family:'Caveat',cursive;font-size:14px;font-weight:700;color:#6E5F7E;line-height:0.9;text-align:center">sick<br>day</span></sc-if>
+            <sc-if value="{{s.today}}" hint-placeholder-val="{{ false }}"><span style="font-family:'Caveat',cursive;font-size:16px;font-weight:700;color:#E5532A">today?</span></sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+
+    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:4px">
+      <section style="position:relative;background:#FFFFFF;padding:14px 12px 10px;transform:rotate(-2deg);box-shadow:0 3px 8px rgba(43,27,61,0.08);background-image:repeating-linear-gradient(#FFFFFF 0 21px,#DCE6FF 21px 22px);display:flex;flex-direction:column;align-items:flex-start;gap:0">
+        <span style="position:absolute;left:14px;top:-9px;width:56px;height:18px;background:repeating-linear-gradient(-45deg,#FF9EC0 0 6px,#FFB8D0 6px 12px);opacity:0.9;transform:rotate(4deg)"></span>
+        <span style="font-family:'Caveat',cursive;font-size:21px;font-weight:700;color:#C2410C">streak</span>
+        <span style="position:relative;display:flex;align-items:center;justify-content:center;width:68px;height:62px;font-size:48px;font-weight:800;line-height:1">9
+          <svg width="76" height="66" viewBox="0 0 70 66" aria-hidden="true" style="position:absolute;left:-4px;top:-2px"><path class="sb-draw2" d="M38 5C14 2 3 20 5 36s20 26 38 23 24-20 21-34S48 4 30 7" fill="none" stroke="#FF6B3D" stroke-width="3" stroke-linecap="round"></path></svg>
+        </span>
+        <span style="font-family:'Caveat',cursive;font-size:19px;font-weight:700;line-height:1.05">workouts in a row<br><span style="color:#6E5F7E">best ever: 14</span></span>
+      </section>
+      <section style="position:relative;background:#FFFFFF;padding:14px 12px 10px;transform:rotate(1.5deg);box-shadow:0 3px 8px rgba(43,27,61,0.08);background-image:repeating-linear-gradient(#FFFFFF 0 21px,#DCE6FF 21px 22px);display:flex;flex-direction:column;align-items:flex-start;gap:4px">
+        <span style="position:absolute;right:14px;top:-9px;width:56px;height:18px;background:repeating-linear-gradient(45deg,#3CC8A5 0 6px,#7EDCC4 6px 12px);opacity:0.85;transform:rotate(-5deg)"></span>
+        <span style="font-family:'Caveat',cursive;font-size:21px;font-weight:700;color:#2F57C9">last 30 days</span>
+        <span style="position:relative;font-size:44px;font-weight:800;line-height:1.1">
+          <span class="sb-swipe" style="position:absolute;left:-4px;right:-6px;top:20px;height:22px;background:#FFC94D;opacity:0.75;border-radius:4px 12px 6px 14px"></span>
+          <span style="position:relative">92%</span>
+        </span>
+        <span style="font-family:'Caveat',cursive;font-size:19px;font-weight:700;line-height:1.05">11 of 12 planned<br><span style="color:#6E5F7E">sick days excused</span></span>
+      </section>
+    </div>
+
+    <div style="position:relative;display:flex;flex-direction:column;gap:2px;margin-top:2px">
+      <div style="display:flex;align-items:center;gap:4px;align-self:flex-end;margin-right:10px">
+        <span style="font-family:'Caveat',cursive;font-size:22px;font-weight:700;color:#B3265E">you've got this!</span>
+        <svg class="sb-arrow" width="28" height="30" viewBox="0 0 34 34" aria-hidden="true"><path d="M6 4c10 2 18 10 20 22M20 22l6 5 4-7" fill="none" stroke="#B3265E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      </div>
+      <a href="SbWorkout.dc.html" class="sb-go" style="position:relative;text-decoration:none;background:#FF6B3D;color:#2B1B3D;border-radius:22px 28px 24px 30px;padding:16px 20px;display:flex;flex-direction:column">
+        <span style="font-size:26px;font-weight:800;line-height:1.1">Let's lift!</span>
+        <span style="font-size:14px;font-weight:700;opacity:0.85">Front Squat day · then pick your sticker</span>
+        <span class="sb-pulse sb-sticker" style="--r:-12deg;position:absolute;right:14px;top:-14px;width:58px;height:58px;border-radius:29px;background:#FFC94D;border:3.5px solid #FFFFFF;box-sizing:border-box;display:flex;align-items:center;justify-content:center">
+          <svg width="34" height="18" viewBox="0 0 54 28" aria-hidden="true"><rect x="2" y="12" width="50" height="4" rx="2" fill="#2B1B3D"></rect><rect x="9" y="3" width="7" height="22" rx="3.5" fill="#FF6B3D"></rect><rect x="38" y="3" width="7" height="22" rx="3.5" fill="#FF6B3D"></rect></svg>
+        </span>
+      </a>
+    </div>
+
+    <div style="position:relative;background:#FFE3EE;padding:12px 14px 16px;transform:rotate(1deg);clip-path:polygon(0 0,100% 0,100% 88%,94% 100%,86% 91%,77% 100%,68% 92%,58% 100%,49% 91%,40% 100%,31% 92%,22% 100%,13% 91%,5% 100%,0 92%)">
+      <span style="font-family:'Caveat',cursive;font-size:21px;font-weight:700;color:#B3265E">Kettle says: push a little!</span>
+      <div style="font-size:14px;font-weight:700;line-height:1.4">Front squat's been stuck at 115 for 3 weeks. Today goes a bit heavier.</div>
+    </div>
+
+    <div style="position:relative;display:flex;flex-direction:column;gap:5px;padding-right:104px;min-height:130px">
+      <span style="display:flex;align-items:baseline;gap:10px"><span style="font-family:'Caveat',cursive;font-size:25px;font-weight:700">today's list</span><a href="SbWhy.dc.html" style="font-family:'Caveat',cursive;font-size:19px;font-weight:700;color:#B3265E">why this? / shuffle</a></span>
+      <div style="display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700"><svg width="20" height="20" viewBox="0 0 22 22" aria-hidden="true"><path d="M3 4c5-1 11 0 16-1 1 5 0 11 1 16-5 1-11 0-16 1-1-5 0-11-1-16z" fill="#FFC94D" stroke="#2B1B3D" stroke-width="2" stroke-linejoin="round"></path></svg>Warm-up <span style="font-weight:500;color:#6E5F7E">3 rounds</span></div>
+      <div style="display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700"><svg width="20" height="20" viewBox="0 0 22 22" aria-hidden="true"><path d="M3 4c5-1 11 0 16-1 1 5 0 11 1 16-5 1-11 0-16 1-1-5 0-11-1-16z" fill="#FF6B3D" stroke="#2B1B3D" stroke-width="2" stroke-linejoin="round"></path></svg>Strength <span style="font-weight:500;color:#6E5F7E">6 × 5</span></div>
+      <div style="display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700"><svg width="20" height="20" viewBox="0 0 22 22" aria-hidden="true"><path d="M3 4c5-1 11 0 16-1 1 5 0 11 1 16-5 1-11 0-16 1-1-5 0-11-1-16z" fill="#6E9BFF" stroke="#2B1B3D" stroke-width="2" stroke-linejoin="round"></path></svg>Metabolic <span style="font-weight:500;color:#6E5F7E">amrap</span></div>
+      <div style="display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700"><svg width="20" height="20" viewBox="0 0 22 22" aria-hidden="true"><path d="M3 4c5-1 11 0 16-1 1 5 0 11 1 16-5 1-11 0-16 1-1-5 0-11-1-16z" fill="#3CC8A5" stroke="#2B1B3D" stroke-width="2" stroke-linejoin="round"></path></svg>Cool-down <span style="font-weight:500;color:#6E5F7E">planks</span></div>
+      <figure style="position:absolute;right:-8px;top:0;margin:0;width:112px;display:flex;flex-direction:column;align-items:center">
+        <svg width="112" height="112" viewBox="0 0 120 120" role="img" aria-label="Line-art bear doing front squats">
+          <line x1="30" y1="110" x2="96" y2="110" stroke="#2B1B3D" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="1 6"></line>
+          <line x1="60" y1="108" x2="70" y2="108" stroke="#2B1B3D" stroke-width="3" stroke-linecap="round"></line>
+          <line x1="60" y1="108" x2="60" y2="88" stroke="#2B1B3D" stroke-width="3" stroke-linecap="round">
+            <animate attributeName="x2" values="60;72;72;60;60" keyTimes="0;0.4;0.5;0.9;1" dur="2.6s" repeatCount="indefinite"></animate>
+            <animate attributeName="y2" values="88;92;92;88;88" keyTimes="0;0.4;0.5;0.9;1" dur="2.6s" repeatCount="indefinite"></animate>
+          </line>
+          <line x1="58" y1="68" x2="60" y2="88" stroke="#2B1B3D" stroke-width="3" stroke-linecap="round">
+            <animate attributeName="x1" values="58;52;52;58;58" keyTimes="0;0.4;0.5;0.9;1" dur="2.6s" repeatCount="indefinite"></animate>
+            <animate attributeName="y1" values="68;90;90;68;68" keyTimes="0;0.4;0.5;0.9;1" dur="2.6s" repeatCount="indefinite"></animate>
+            <animate attributeName="x2" values="60;72;72;60;60" keyTimes="0;0.4;0.5;0.9;1" dur="2.6s" repeatCount="indefinite"></animate>
+            <animate attributeName="y2" values="88;92;92;88;88" keyTimes="0;0.4;0.5;0.9;1" dur="2.6s" repeatCount="indefinite"></animate>
+          </line>
+          <g>
+            <animateTransform attributeName="transform" type="translate" values="0 0;-6 22;-6 22;0 0;0 0" keyTimes="0;0.4;0.5;0.9;1" dur="2.6s" repeatCount="indefinite"></animateTransform>
+            <ellipse cx="57" cy="55" rx="11" ry="15" fill="#FFF8EE" stroke="#2B1B3D" stroke-width="3"></ellipse>
+            <path d="M47 62q-4 3-3 7" fill="none" stroke="#2B1B3D" stroke-width="2.5" stroke-linecap="round"></path>
+            <circle cx="53" cy="17" r="4.5" fill="#FFF8EE" stroke="#2B1B3D" stroke-width="2.5"></circle>
+            <circle cx="66" cy="17" r="4.5" fill="#FFF8EE" stroke="#2B1B3D" stroke-width="2.5"></circle>
+            <circle cx="60" cy="27" r="11" fill="#FFF8EE" stroke="#2B1B3D" stroke-width="3"></circle>
+            <ellipse cx="70" cy="30" rx="5" ry="3.6" fill="#FFF8EE" stroke="#2B1B3D" stroke-width="2.5"></ellipse>
+            <circle cx="74" cy="29" r="1.6" fill="#2B1B3D"></circle>
+            <circle cx="64" cy="24" r="1.6" fill="#2B1B3D"></circle>
+            <circle cx="62" cy="31" r="2.2" fill="#FF9EC0" opacity="0.8"></circle>
+            <path d="M60 44l12 6-3-11" fill="none" stroke="#2B1B3D" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
+            <circle cx="70" cy="40" r="10" fill="#FF6B3D" stroke="#2B1B3D" stroke-width="2.5"></circle>
+            <circle cx="70" cy="40" r="2.5" fill="#2B1B3D"></circle>
+          </g>
+        </svg>
+        <figcaption style="font-family:'Caveat',cursive;font-size:17px;font-weight:700;line-height:1;text-align:center;margin-top:-4px">bear says:<br>front squat!</figcaption>
+      </figure>
+    </div>
+  </div>
+
+  <nav style="position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:10px 8px 26px;background:#FFF8EE;border-top:2px dashed #E8D9C8;font-family:'Caveat',cursive;font-size:20px;font-weight:700;color:#6E5F7E">
+    <a href="Scrapbook.dc.html" style="text-decoration:none;color:#E5532A;text-align:center">Today</a>
+    <a href="SbJournal.dc.html" style="text-decoration:none;color:#6E5F7E;text-align:center">Journal</a>
+    <a href="SbProgress.dc.html" style="text-decoration:none;color:#6E5F7E;text-align:center">Progress</a>
+    <a href="Main.dc.html" style="text-decoration:none;color:#6E5F7E;text-align:center">Settings</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+const kinds = ['barbell','kettle','barbell','dumbbell','star','barbell','missed','barbell','kettle','dumbbell','barbell','today'];
+const bgs = { barbell:'#FF6B3D', kettle:'#FF9EC0', dumbbell:'#6E9BFF', star:'#3CC8A5', missed:'#FFF4E8', today:'#FFF4E8' };
+const shapes = { barbell:'20px', kettle:'20px', dumbbell:'12px', star:'20px 6px 20px 6px', missed:'20px', today:'20px' };
+const rots = [-8, 6, -3, 10, -6, 4, 0, -10, 7, -4, 9, 0];
+const stickers = kinds.map((k, i) => ({
+  barbell: k === 'barbell', kettle: k === 'kettle', dumbbell: k === 'dumbbell', star: k === 'star',
+  missed: k === 'missed', today: k === 'today',
+  bg: bgs[k], shape: shapes[k], ring: (k === 'missed' || k === 'today') ? '#E3D3C2' : '#FFFFFF',
+  op: k === 'missed' ? 0.65 : 1, rot: rots[i] + 'deg', delay: (0.07 * i + 0.5).toFixed(2) + 's'
+}));
+return { stickers };
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+# --- Personal data: NEVER commit (this is a public repo) ---
+*.xlsx
+*.xls
+*.csv
+data/
+/history.json
+/movements.json
+import_report.md
+exports/
+
+# --- macOS ---
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# --- Xcode / SwiftPM ---
+*.xcodeproj/
+*.xcworkspace/
+!Packages/**/*.xcworkspace/contents.xcworkspacedata
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+DerivedData/
+build/
+.build/
+.swiftpm/
+Package.resolved
+*.ipa
+*.dSYM.zip
+*.dSYM
+*.xcresult
+*.xcarchive
+
+# --- Python ---
+__pycache__/
+*.pyc
+.venv/
+
+# --- Editors / secrets ---
+.idea/
+.vscode/
+*.env
+.env*
+*.p12
+*.mobileprovision
+*.cer

@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Progress (scrapbook)</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&amp;family=Nunito:wght@500;700;800&amp;display=swap">
+<style>
+body{margin:0}
+@keyframes draw{from{stroke-dashoffset:600}to{stroke-dashoffset:0}}
+@keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes pop{0%{opacity:0;transform:scale(0)}70%{transform:scale(1.3)}100%{opacity:1;transform:scale(1)}}
+.sb-line{stroke-dasharray:600;animation:draw 1.6s ease-out .3s both}
+.sb-line2{stroke-dasharray:600;animation:draw 1.6s ease-out .6s both}
+.sb-grow{transform-origin:left center;animation:grow .9s cubic-bezier(.2,1,.3,1) .8s both}
+.sb-pop{transform-box:fill-box;transform-origin:center;animation:pop .4s ease-out 1.9s both}
+.sb-sticker{filter:drop-shadow(0 2px 2px rgba(43,27,61,0.22))}
+@media (prefers-reduced-motion: reduce){.sb-line,.sb-line2,.sb-grow,.sb-pop{animation:none;stroke-dasharray:none}}
+</style>
+</helmet>
+<div style="position:relative;width:390px;height:844px;box-sizing:border-box;background-color:#FFF8EE;background-image:radial-gradient(#E8D9C8 1.2px, transparent 1.2px);background-size:18px 18px;color:#2B1B3D;font-family:'Nunito',system-ui,sans-serif;display:flex;flex-direction:column;overflow:hidden">
+  <div style="position:absolute;left:30px;top:0;bottom:0;width:2px;background:#FFC4D6"></div>
+
+  <div style="position:relative;flex-grow:1;display:flex;flex-direction:column;gap:12px;padding:50px 20px 8px 44px">
+    <h1 style="margin:0;font-size:32px;font-weight:800;line-height:1.1">progress</h1>
+
+    <nav aria-label="Chart type" style="display:flex;gap:18px;font-family:'Caveat',cursive;font-size:22px;font-weight:700">
+      <a href="SbProgress.dc.html" aria-current="page" style="position:relative;text-decoration:none;color:#2B1B3D">max weight<svg width="100%" height="8" viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true" style="position:absolute;left:0;bottom:-4px"><path d="M2 5C25 2 50 7 98 3" fill="none" stroke="#FF6B3D" stroke-width="3" stroke-linecap="round"></path></svg></a>
+      <a href="SbProgress.dc.html" style="text-decoration:none;color:#9A8FA8">volume</a>
+      <a href="SbProgress.dc.html" style="text-decoration:none;color:#9A8FA8">benchmarks</a>
+    </nav>
+
+    <section style="position:relative;background:#FFFFFF;padding:12px 8px 6px;transform:rotate(-0.6deg);box-shadow:0 3px 8px rgba(43,27,61,0.08)">
+      <span style="position:absolute;left:24px;top:-9px;width:60px;height:18px;background:repeating-linear-gradient(45deg,#FF9EC0 0 6px,#FFB8D0 6px 12px);opacity:0.9;transform:rotate(-4deg)"></span>
+      <span style="position:absolute;right:16px;top:-9px;width:60px;height:18px;background:repeating-linear-gradient(-45deg,#3CC8A5 0 6px,#7EDCC4 6px 12px);opacity:0.85;transform:rotate(5deg)"></span>
+      <svg width="314" height="184" viewBox="0 0 340 184" role="img" aria-label="Top set per session, April to October 2026. Front squat: 115 in spring, 75 after summer break, back up to 120. Deadlift: up to 200 in June, 110 after the break, back to 185.">
+        <rect x="180" y="6" width="44" height="148" fill="#FFC94D" opacity="0.28"></rect>
+        <text x="202" y="24" text-anchor="middle" font-family="Caveat, cursive" font-size="15" font-weight="700" fill="#8A5A00">summer</text>
+        <text x="202" y="38" text-anchor="middle" font-family="Caveat, cursive" font-size="15" font-weight="700" fill="#8A5A00">break</text>
+        <line x1="30" x2="334" y1="112.7" y2="112.7" stroke="#E8D9C8" stroke-width="1.5" stroke-dasharray="4 5"></line>
+        <line x1="30" x2="334" y1="66" y2="66" stroke="#E8D9C8" stroke-width="1.5" stroke-dasharray="4 5"></line>
+        <line x1="30" x2="334" y1="19.3" y2="19.3" stroke="#E8D9C8" stroke-width="1.5" stroke-dasharray="4 5"></line>
+        <text x="24" y="117" text-anchor="end" font-family="Caveat, cursive" font-size="15" font-weight="700" fill="#6E5F7E">100</text>
+        <text x="24" y="70" text-anchor="end" font-family="Caveat, cursive" font-size="15" font-weight="700" fill="#6E5F7E">150</text>
+        <text x="24" y="23" text-anchor="end" font-family="Caveat, cursive" font-size="15" font-weight="700" fill="#6E5F7E">200</text>
+        <polyline class="sb-line2" points="70.6,52 92.5,47.3 114.4,52 131.6,19.3" fill="none" stroke="#6E9BFF" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+        <line x1="131.6" y1="19.3" x2="245.6" y2="103.3" stroke="#6E9BFF" stroke-width="2" stroke-dasharray="2 6" stroke-linecap="round"></line>
+        <polyline class="sb-line2" points="245.6,103.3 273.8,75.3 295.6,47.3 317.5,33.3" fill="none" stroke="#6E9BFF" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+        <polyline class="sb-line" points="48.8,98.7 136.2,98.7" fill="none" stroke="#FF6B3D" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+        <line x1="136.2" y1="98.7" x2="237.8" y2="136" stroke="#FF6B3D" stroke-width="2" stroke-dasharray="2 6" stroke-linecap="round"></line>
+        <polyline class="sb-line" points="237.8,136 259.7,126.7 278.4,108 300.3,98.7 322.2,94" fill="none" stroke="#FF6B3D" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+        <circle cx="48.8" cy="98.7" r="4.5" fill="#FF6B3D" stroke="#FFFFFF" stroke-width="2"></circle><circle cx="136.2" cy="98.7" r="4.5" fill="#FF6B3D" stroke="#FFFFFF" stroke-width="2"></circle><circle cx="237.8" cy="136" r="4.5" fill="#FF6B3D" stroke="#FFFFFF" stroke-width="2"></circle><circle cx="259.7" cy="126.7" r="4.5" fill="#FF6B3D" stroke="#FFFFFF" stroke-width="2"></circle><circle cx="278.4" cy="108" r="4.5" fill="#FF6B3D" stroke="#FFFFFF" stroke-width="2"></circle><circle cx="300.3" cy="98.7" r="4.5" fill="#FF6B3D" stroke="#FFFFFF" stroke-width="2"></circle>
+        <circle cx="70.6" cy="52" r="4.5" fill="#6E9BFF" stroke="#FFFFFF" stroke-width="2"></circle><circle cx="92.5" cy="47.3" r="4.5" fill="#6E9BFF" stroke="#FFFFFF" stroke-width="2"></circle><circle cx="114.4" cy="52" r="4.5" fill="#6E9BFF" stroke="#FFFFFF" stroke-width="2"></circle><circle cx="131.6" cy="19.3" r="4.5" fill="#6E9BFF" stroke="#FFFFFF" stroke-width="2"></circle><circle cx="245.6" cy="103.3" r="4.5" fill="#6E9BFF" stroke="#FFFFFF" stroke-width="2"></circle><circle cx="273.8" cy="75.3" r="4.5" fill="#6E9BFF" stroke="#FFFFFF" stroke-width="2"></circle><circle cx="295.6" cy="47.3" r="4.5" fill="#6E9BFF" stroke="#FFFFFF" stroke-width="2"></circle>
+        <circle class="sb-pop" cx="317.5" cy="33.3" r="7" fill="#6E9BFF" stroke="#FFFFFF" stroke-width="3"></circle>
+        <circle class="sb-pop" cx="322.2" cy="94" r="7" fill="#FF6B3D" stroke="#FFFFFF" stroke-width="3"></circle>
+        <text x="30" y="176" font-family="Caveat, cursive" font-size="15" font-weight="700" fill="#6E5F7E">Apr</text>
+        <text x="125" y="176" text-anchor="middle" font-family="Caveat, cursive" font-size="15" font-weight="700" fill="#6E5F7E">Jun</text>
+        <text x="221" y="176" text-anchor="middle" font-family="Caveat, cursive" font-size="15" font-weight="700" fill="#6E5F7E">Aug</text>
+        <text x="320" y="176" text-anchor="middle" font-family="Caveat, cursive" font-size="15" font-weight="700" fill="#6E5F7E">Oct</text>
+      </svg>
+      <span style="position:absolute;right:30px;top:114px;font-family:'Caveat',cursive;font-size:18px;font-weight:700;color:#B3265E;transform:rotate(-6deg)">comeback!</span>
+    </section>
+
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      <button aria-pressed="true" class="sb-sticker" style="height:32px;padding:0 12px;border-radius:16px;border:2.5px solid #FFFFFF;background:#FF6B3D;color:#2B1B3D;font-weight:800;font-size:13px;transform:rotate(-3deg)">Front Squat</button>
+      <button aria-pressed="true" class="sb-sticker" style="height:32px;padding:0 12px;border-radius:16px;border:2.5px solid #FFFFFF;background:#6E9BFF;color:#2B1B3D;font-weight:800;font-size:13px;transform:rotate(2deg)">Deadlift</button>
+      <button aria-pressed="false" style="height:32px;padding:0 12px;border-radius:16px;border:2px dashed #C9B8A6;background:transparent;color:#6E5F7E;font-weight:700;font-size:13px">Back Squat</button>
+      <button aria-pressed="false" style="height:32px;padding:0 12px;border-radius:16px;border:2px dashed #C9B8A6;background:transparent;color:#6E5F7E;font-weight:700;font-size:13px">Push Press</button>
+      <button aria-pressed="false" style="height:32px;padding:0 12px;border-radius:16px;border:2px dashed #C9B8A6;background:transparent;color:#6E5F7E;font-weight:700;font-size:13px">Push Jerk</button>
+      <button aria-pressed="false" style="height:32px;padding:0 12px;border-radius:16px;border:2px dashed #C9B8A6;background:transparent;color:#6E5F7E;font-weight:700;font-size:13px">Hang Power Clean</button>
+    </div>
+
+    <section style="position:relative;background:#FFFFFF;padding:12px 14px 10px;transform:rotate(0.8deg);box-shadow:0 3px 8px rgba(43,27,61,0.08);display:flex;flex-direction:column;gap:6px">
+      <span style="position:absolute;left:50%;top:-9px;margin-left:-30px;width:60px;height:18px;background:repeating-linear-gradient(45deg,#FFC94D 0 6px,#FFD978 6px 12px);opacity:0.85;transform:rotate(-2deg)"></span>
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <span style="font-family:'Caveat',cursive;font-size:22px;font-weight:700">block 1</span>
+        <span style="font-size:13px;font-weight:700;color:#6E5F7E">test week Oct 12 · starts Oct 19</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(13,minmax(0,1fr));gap:3px">
+        <span style="height:22px;border-radius:5px;background:#FF9EC0;display:flex;align-items:center;justify-content:center;font-family:'Caveat',cursive;font-size:13px;font-weight:700">T</span>
+        <span style="height:22px;border-radius:5px;background:#FFE7A8"></span><span style="height:22px;border-radius:5px;background:#FFE7A8"></span><span style="height:22px;border-radius:5px;background:#FFE7A8"></span><span style="height:22px;border-radius:5px;background:#FFE7A8"></span>
+        <span style="height:22px;border-radius:5px;background:#FFC9B5"></span><span style="height:22px;border-radius:5px;background:#FFC9B5"></span><span style="height:22px;border-radius:5px;background:#FFC9B5"></span><span style="height:22px;border-radius:5px;background:#FFC9B5"></span>
+        <span style="height:22px;border-radius:5px;background:#FF8D66"></span><span style="height:22px;border-radius:5px;background:#FF8D66"></span><span style="height:22px;border-radius:5px;background:#FF8D66"></span>
+        <span style="height:22px;border-radius:5px;background:#BDEEDF"></span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-family:'Caveat',cursive;font-size:16px;font-weight:700;color:#6E5F7E">
+        <span>test</span><span>volume</span><span>strength</span><span>peak</span><span>deload</span>
+      </div>
+    </section>
+
+    <div style="display:flex;justify-content:space-between;align-items:baseline">
+      <span style="font-family:'Caveat',cursive;font-size:24px;font-weight:700">goals</span>
+      <button style="border:0;background:transparent;font-family:'Caveat',cursive;font-size:20px;font-weight:700;color:#B3265E">+ new goal</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:800"><span>Deadlift 200 lb</span><span style="font-family:'Caveat',cursive;font-size:18px;color:#6E5F7E">by Jan 15</span></div>
+        <div style="height:14px;border-radius:8px 6px 9px 5px;background:#E3ECFF;overflow:hidden"><div class="sb-grow" style="width:92%;height:14px;border-radius:8px 6px 9px 5px;background:#6E9BFF"></div></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:800"><span>Front Squat 135 lb</span><span style="font-family:'Caveat',cursive;font-size:18px;color:#6E5F7E">by Jan 15</span></div>
+        <div style="height:14px;border-radius:8px 6px 9px 5px;background:#FFE2D6;overflow:hidden"><div class="sb-grow" style="width:89%;height:14px;border-radius:8px 6px 9px 5px;background:#FF6B3D"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <nav style="position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:10px 8px 26px;background:#FFF8EE;border-top:2px dashed #E8D9C8;font-family:'Caveat',cursive;font-size:20px;font-weight:700;color:#6E5F7E">
+    <a href="Scrapbook.dc.html" style="text-decoration:none;color:#6E5F7E;text-align:center">Today</a>
+    <a href="SbJournal.dc.html" style="text-decoration:none;color:#6E5F7E;text-align:center">Journal</a>
+    <a href="SbProgress.dc.html" style="text-decoration:none;color:#E5532A;text-align:center">Progress</a>
+    <a href="Scrapbook.dc.html" style="text-decoration:none;color:#6E5F7E;text-align:center">Settings</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

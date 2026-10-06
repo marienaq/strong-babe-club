@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Workout: metabolic (scrapbook)</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&amp;family=Nunito:wght@500;700;800&amp;display=swap">
+<style>
+body{margin:0}
+@keyframes slap{0%{opacity:0;transform:scale(1.7) rotate(var(--r))}60%{opacity:1;transform:scale(0.92) rotate(var(--r))}100%{opacity:1;transform:scale(1) rotate(var(--r))}}
+@keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}
+@keyframes sweep{from{stroke-dashoffset:0}to{stroke-dashoffset:60}}
+.sb-slap{animation:slap .45s cubic-bezier(.2,1.2,.4,1) both}
+.sb-breathe{animation:breathe 1s ease-in-out infinite;transform-origin:center}
+.sb-sticker{filter:drop-shadow(0 2px 2px rgba(43,27,61,0.22))}
+@media (prefers-reduced-motion: reduce){.sb-slap,.sb-breathe{animation:none}}
+</style>
+</helmet>
+<div style="position:relative;width:390px;height:844px;box-sizing:border-box;background-color:#FFF8EE;background-image:radial-gradient(#E8D9C8 1.2px, transparent 1.2px);background-size:18px 18px;color:#2B1B3D;font-family:'Nunito',system-ui,sans-serif;display:flex;flex-direction:column;overflow:hidden">
+  <div style="position:absolute;left:30px;top:0;bottom:0;width:2px;background:#FFC4D6"></div>
+
+  <header style="position:relative;padding:48px 20px 6px 44px;display:flex;flex-direction:column;gap:8px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline">
+      <span style="font-family:'Caveat',cursive;font-size:21px;font-weight:600;color:#6E5F7E">Mon, Oct 5 · front squat day</span>
+      <span style="font-size:14px;font-weight:800;color:#6E5F7E;font-variant-numeric:tabular-nums">34:05</span>
+    </div>
+    <nav aria-label="Workout sections" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;font-family:'Caveat',cursive;font-size:18px;font-weight:700">
+      <a href="SbWorkout.dc.html" style="text-decoration:none;color:#2B1B3D;background:#FFC94D;opacity:0.55;height:30px;display:flex;align-items:center;justify-content:center;transform:rotate(-1deg)">warm-up ✓</a>
+      <a href="SbWorkout.dc.html" style="text-decoration:none;color:#2B1B3D;background:#FF6B3D;opacity:0.55;height:30px;display:flex;align-items:center;justify-content:center;transform:rotate(1.5deg)">strength ✓</a>
+      <a href="SbMetabolic.dc.html" aria-current="step" style="text-decoration:none;color:#2B1B3D;background:#6E9BFF;height:34px;margin-top:-2px;display:flex;align-items:center;justify-content:center;transform:rotate(-1.5deg);box-shadow:0 2px 4px rgba(43,27,61,0.2)">metabolic</a>
+      <a href="SbMetabolic.dc.html" style="text-decoration:none;color:#2B1B3D;background:#BDEEDF;height:30px;display:flex;align-items:center;justify-content:center;transform:rotate(1deg)">cool-down</a>
+    </nav>
+  </header>
+
+  <div style="position:relative;flex-grow:1;display:flex;flex-direction:column;gap:12px;padding:8px 20px 8px 44px">
+    <section style="position:relative;background:#FFFFFF;padding:14px 14px 12px;transform:rotate(0.8deg);box-shadow:0 3px 8px rgba(43,27,61,0.08);display:flex;flex-direction:column;gap:6px">
+      <span style="position:absolute;right:22px;top:-9px;width:64px;height:18px;background:repeating-linear-gradient(-45deg,#6E9BFF 0 6px,#9BBBFF 6px 12px);opacity:0.85;transform:rotate(4deg)"></span>
+      <span class="sb-slap" style="--r:-12deg;position:absolute;right:10px;top:16px;width:64px;height:64px;border-radius:32px;border:2.5px solid #2F57C9;color:#2F57C9;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:9px;font-weight:800;letter-spacing:0.08em;line-height:1.1;text-align:center;animation-delay:.5s">BENCH<br>MARK<span style="font-family:'Caveat',cursive;font-size:16px;letter-spacing:0">Q4</span></span>
+      <span style="font-family:'Caveat',cursive;font-size:20px;font-weight:700;color:#2F57C9">metabolic</span>
+      <span style="font-size:22px;font-weight:800;letter-spacing:-0.01em">amrap-5-4-fungi</span>
+      <span style="font-size:14px;font-weight:600">5 rounds · as many as you can in 4 min · rest 1 min</span>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:2px">
+        <div style="display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700"><span style="font-family:'Caveat',cursive;font-size:22px;color:#2F57C9;width:14px">A</span>3 DB hang squat cleans<span class="sb-sticker" style="margin-left:auto;font-size:12px;font-weight:800;background:#6E9BFF;border:2.5px solid #FFFFFF;border-radius:12px;padding:2px 8px;transform:rotate(-4deg)">2 × 20 lb</span></div>
+        <div style="display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700"><span style="font-family:'Caveat',cursive;font-size:22px;color:#2F57C9;width:14px">B</span>4 push-ups</div>
+        <div style="display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700"><span style="font-family:'Caveat',cursive;font-size:22px;color:#2F57C9;width:14px">C</span>5 KB swings<span class="sb-sticker" style="margin-left:auto;font-size:12px;font-weight:800;background:#FF9EC0;border:2.5px solid #FFFFFF;border-radius:12px;padding:2px 8px;transform:rotate(5deg)">35 lb KB</span></div>
+      </div>
+    </section>
+
+    <div style="display:flex;align-items:center;gap:16px;padding:0 2px">
+      <svg class="sb-breathe" width="130" height="130" viewBox="0 0 100 100" role="img" aria-label="2 minutes 41 seconds left in round 3">
+        <path d="M50 7C26 6 7 26 8 50s20 43 43 42 41-20 41-43S74 8 47 9" fill="none" stroke="#E3ECFF" stroke-width="10" stroke-linecap="round"></path>
+        <path d="M50 7C26 6 7 26 8 50s20 43 43 42 41-20 41-43" fill="none" stroke="#6E9BFF" stroke-width="10" stroke-linecap="round"></path>
+        <text x="50" y="55" text-anchor="middle" font-family="Nunito, sans-serif" font-size="21" font-weight="800" fill="#2B1B3D">2:41</text>
+        <text x="50" y="70" text-anchor="middle" font-family="Caveat, cursive" font-size="13" font-weight="700" fill="#2F57C9">work!</text>
+      </svg>
+      <div style="flex-grow:1;display:flex;flex-direction:column;gap:8px">
+        <span style="font-family:'Caveat',cursive;font-size:24px;font-weight:700;line-height:1">round 3 of 5</span>
+        <span style="font-size:13px;font-weight:600;color:#6E5F7E">then 1:00 rest. Phone buzzes at each switch.</span>
+        <div style="display:flex;gap:10px">
+          <button class="sb-sticker" style="height:44px;padding:0 16px;border-radius:22px;border:3px solid #FFFFFF;background:#2B1B3D;color:#FFF4E8;font-weight:800;font-size:15px;transform:rotate(-3deg)">pause</button>
+          <button class="sb-sticker" style="height:44px;padding:0 16px;border-radius:22px;border:3px solid #FFFFFF;background:#FFC94D;color:#2B1B3D;font-weight:800;font-size:15px;transform:rotate(3deg)">reset</button>
+        </div>
+      </div>
+    </div>
+
+    <section style="position:relative;background:#FFFFFF;padding:8px 14px 4px;box-shadow:0 3px 8px rgba(43,27,61,0.08);background-image:repeating-linear-gradient(#FFFFFF 0 37px,#DCE6FF 37px 38px);display:flex;flex-direction:column">
+      <div style="display:grid;grid-template-columns:54px 1fr 1fr;gap:6px;font-family:'Caveat',cursive;font-size:17px;font-weight:700;color:#6E5F7E;height:26px;align-items:center">
+        <span>round</span><span style="text-align:center">today</span><span style="text-align:right">last time (Jul)</span>
+      </div>
+      <div style="display:grid;grid-template-columns:54px 1fr 1fr;gap:6px;align-items:center;height:38px"><span style="font-family:'Caveat',cursive;font-size:22px;font-weight:700;text-align:center">1</span><span style="font-family:'Caveat',cursive;font-size:26px;font-weight:700;text-align:center">5 + 2</span><span style="font-family:'Caveat',cursive;font-size:20px;color:#9A8FA8;text-align:right">5 + 1</span></div>
+      <div style="display:grid;grid-template-columns:54px 1fr 1fr;gap:6px;align-items:center;height:38px"><span style="font-family:'Caveat',cursive;font-size:22px;font-weight:700;text-align:center">2</span><span style="font-family:'Caveat',cursive;font-size:26px;font-weight:700;text-align:center">5 + 4</span><span style="font-family:'Caveat',cursive;font-size:20px;color:#9A8FA8;text-align:right">5 + 5</span></div>
+      <div style="display:grid;grid-template-columns:54px 1fr 1fr;gap:6px;align-items:center;height:38px"><span style="font-family:'Caveat',cursive;font-size:22px;font-weight:700;text-align:center">3</span>
+        <span style="display:flex;align-items:center;justify-content:center;gap:4px">
+          <label><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Round 3 rounds</span><input placeholder="5" style="width:38px;height:30px;border:0;border-bottom:2.5px solid #6E9BFF;background:transparent;text-align:center;font-family:'Caveat',cursive;font-size:24px;font-weight:700;color:#2B1B3D;outline:none"></label>
+          <span style="font-family:'Caveat',cursive;font-size:22px">+</span>
+          <label><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Round 3 extra reps</span><input placeholder="0" style="width:38px;height:30px;border:0;border-bottom:2.5px solid #D9CCBD;background:transparent;text-align:center;font-family:'Caveat',cursive;font-size:24px;font-weight:700;color:#2B1B3D;outline:none"></label>
+        </span>
+        <span style="font-family:'Caveat',cursive;font-size:20px;color:#9A8FA8;text-align:right">5 + 3</span></div>
+      <div style="display:grid;grid-template-columns:54px 1fr 1fr;gap:6px;align-items:center;height:38px;color:#9A8FA8"><span style="font-family:'Caveat',cursive;font-size:22px;font-weight:700;text-align:center">4</span><span style="text-align:center">–</span><span style="font-family:'Caveat',cursive;font-size:20px;text-align:right">4 + 7</span></div>
+      <div style="display:grid;grid-template-columns:54px 1fr 1fr;gap:6px;align-items:center;height:38px;color:#9A8FA8"><span style="font-family:'Caveat',cursive;font-size:22px;font-weight:700;text-align:center">5</span><span style="text-align:center">–</span><span style="font-family:'Caveat',cursive;font-size:20px;text-align:right">6 + 0</span></div>
+      <span style="position:absolute;left:96px;top:58px;font-family:'Caveat',cursive;font-size:17px;font-weight:700;color:#B3265E;transform:rotate(-6deg)">+1 ahead!</span>
+    </section>
+  </div>
+
+  <div style="position:relative;padding:10px 20px 30px 44px;display:flex;gap:10px">
+    <a href="SbFinish.dc.html" style="text-decoration:none;flex-grow:1;height:52px;border-radius:20px 24px 22px 26px;background:#FFFFFF;box-shadow:0 3px 8px rgba(43,27,61,0.1);color:#2B1B3D;font-weight:800;font-size:16px;display:flex;align-items:center;justify-content:center">next: cool-down →</a>
+    <a href="SbFinish.dc.html" style="text-decoration:none;width:110px;height:52px;border-radius:22px 28px 24px 30px;background:#FF6B3D;color:#2B1B3D;font-weight:800;font-size:17px;display:flex;align-items:center;justify-content:center">finish</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

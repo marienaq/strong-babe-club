@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Why this workout (scrapbook)</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&amp;family=Nunito:wght@500;700;800&amp;display=swap">
+<style>
+body{margin:0}
+@keyframes up{from{transform:translateY(60px);opacity:0}to{transform:none;opacity:1}}
+@keyframes spin{0%,70%,100%{transform:rotate(0)}85%{transform:rotate(180deg)}}
+.sb-up{animation:up .5s cubic-bezier(.2,1.2,.4,1) both}
+.sb-spin{animation:spin 3.5s ease-in-out 1s infinite}
+.sb-sticker{filter:drop-shadow(0 2px 2px rgba(43,27,61,0.22))}
+@media (prefers-reduced-motion: reduce){.sb-up,.sb-spin{animation:none}}
+</style>
+</helmet>
+<div style="position:relative;width:390px;height:844px;box-sizing:border-box;background:#5A4A66;color:#2B1B3D;font-family:'Nunito',system-ui,sans-serif;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden">
+  <div class="sb-up" style="position:relative;height:796px;box-sizing:border-box;background-color:#FFF8EE;background-image:radial-gradient(#E8D9C8 1.2px, transparent 1.2px);background-size:18px 18px;border-radius:28px 28px 0 0;padding:12px 20px 30px 22px;display:flex;flex-direction:column;gap:12px">
+    <div style="align-self:center;width:44px;height:5px;border-radius:3px;background:#D9CCBD"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span style="font-family:'Caveat',cursive;font-size:32px;font-weight:700;line-height:1">why this workout?</span>
+      <a href="Scrapbook.dc.html" style="font-weight:800;color:#6E5F7E;text-decoration:none;font-size:15px;padding:10px 0">done</a>
+    </div>
+    <span style="font-size:14px;font-weight:600;line-height:1.4;color:#6E5F7E">Picked from your last 6 weeks: what you trained, how hard it felt, and your notes.</span>
+
+    <sc-for list="{{cards}}" as="c" hint-placeholder-count="4">
+      <section style="position:relative;background:#FFFFFF;padding:14px 14px 12px;box-shadow:0 3px 8px rgba(43,27,61,0.08);transform:rotate({{c.rot}});display:flex;flex-direction:column;gap:4px">
+        <span style="position:absolute;left:{{c.tapeLeft}};top:-9px;width:58px;height:18px;background:{{c.tape}};opacity:0.85;transform:rotate({{c.tapeRot}})"></span>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-family:'Caveat',cursive;font-size:21px;font-weight:700;color:{{c.labelColor}}">{{c.label}}</span>
+          <button aria-label="Shuffle {{c.label}}" class="sb-sticker" style="height:34px;padding:0 12px;border-radius:17px;border:2.5px solid #FFFFFF;background:{{c.color}};color:#2B1B3D;font-weight:800;font-size:13px;display:flex;align-items:center;gap:5px;transform:rotate({{c.btnRot}})">
+            <svg class="sb-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2B1B3D" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14-5l-2 2M4 13a8 8 0 0 0 14 5l2-2M4 4v4h4M20 20v-4h-4"></path></svg>shuffle</button>
+        </div>
+        <span style="font-size:16px;font-weight:800">{{c.what}}</span>
+        <span style="font-family:'Caveat',cursive;font-size:19px;font-weight:600;line-height:1.15;color:#4A3B5A">{{c.why}}</span>
+      </section>
+    </sc-for>
+
+    <div style="flex-grow:1"></div>
+    <div style="display:flex;gap:10px">
+      <button style="flex-grow:1;height:54px;border-radius:20px 24px 22px 26px;border:0;background:#FFFFFF;box-shadow:0 3px 8px rgba(43,27,61,0.1);color:#2B1B3D;font-weight:800;font-size:16px">shuffle everything</button>
+      <a href="SbWorkout.dc.html" style="text-decoration:none;flex-grow:1;height:54px;border-radius:22px 28px 24px 30px;background:#FF6B3D;color:#2B1B3D;font-weight:800;font-size:17px;display:flex;align-items:center;justify-content:center">let's lift!</a>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+const cards = [
+  { label: 'warm-up', color: '#FFC94D', labelColor: '#8A5A00', tape: 'repeating-linear-gradient(45deg,#FFC94D 0 6px,#FFD978 6px 12px)',
+    what: 'Jumping jacks · inchworms · air squats · goblet squats',
+    why: 'Warms up the squat pattern. Light jumping only, since your knee has been happy lately.' },
+  { label: 'strength', color: '#FF6B3D', labelColor: '#C2410C', tape: 'repeating-linear-gradient(-45deg,#FF6B3D 0 6px,#FF8D66 6px 12px)',
+    what: 'Front Squat · 6 × 5 every 2 min',
+    why: 'Week B: squat day. You hit 120 last time and rated it 3/5, so today tops out at 125.' },
+  { label: 'metabolic', color: '#6E9BFF', labelColor: '#2F57C9', tape: 'repeating-linear-gradient(45deg,#6E9BFF 0 6px,#9BBBFF 6px 12px)',
+    what: 'amrap-5-4-fungi (benchmark)',
+    why: 'Your quarterly repeat. Last done in July. Try to beat 25 rounds + 16 reps!' },
+  { label: 'cool-down', color: '#3CC8A5', labelColor: '#147A5F', tape: 'repeating-linear-gradient(-45deg,#3CC8A5 0 6px,#7EDCC4 6px 12px)',
+    what: 'V-ups 15 × 5 · hip flexor stretch',
+    why: 'Core is your least-trained group this month. The stretch is for after squats.' }
+];
+const rots = ['-1deg', '0.8deg', '-0.6deg', '1deg'];
+return { cards: cards.map((c, i) => ({ ...c, rot: rots[i], tapeLeft: i % 2 ? '60%' : '18px', tapeRot: i % 2 ? '4deg' : '-4deg', btnRot: i % 2 ? '3deg' : '-3deg' })) };
+}
+}
+</script>
+</body>
+</html>
