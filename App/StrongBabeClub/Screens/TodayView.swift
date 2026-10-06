@@ -6,8 +6,8 @@ import WorkoutCore
 @MainActor
 struct TodayView: View {
     @Environment(AppStore.self) private var store
-    @State private var showWorkout = false
-    @State private var showWhy = false
+    @State private var showWorkout = DebugRoute.open == "session" || DebugRoute.open == "finish"
+    @State private var showWhy = DebugRoute.open == "why"
 
     var body: some View {
         let workout = store.nextWorkout
@@ -36,27 +36,39 @@ struct TodayView: View {
 
     func header(_ workout: PlannedWorkout?) -> some View {
         let t = store.today
-        let week = store.settings.rotation.week(for: t).rawValue
-        return ZStack(alignment: .topTrailing) {
+        return HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 0) {
-                Text("\(t.shortDisplay) · week \(week)").hand(22, .semibold, color: Palette.muted)
+                let context = store.calendar.contextLabel(on: t)
+                ViewThatFits(in: .horizontal) {
+                    Text("\(t.shortDisplay) · \(context)").lineLimit(1)
+                    VStack(alignment: .leading, spacing: -2) {
+                        Text(t.shortDisplay)
+                        Text(context).lineLimit(1).minimumScaleFactor(0.8)
+                    }
+                }
+                .hand(21, .semibold, color: Palette.muted)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("blockContext")
                 Text("Hey, \(store.settings.greetingName)")
                     .bodyText(30, .heavy)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                     .accessibilityAddTraits(.isHeader)
                 DrawnStroke(shape: Squiggle(), color: Palette.tangerine, lineWidth: 4)
                     .frame(width: 160, height: 12)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             Circle().fill(Palette.bubblegum)
-                .overlay(Circle().strokeBorder(.white, lineWidth: 3.5))
-                .overlay(KettleFace().frame(width: 44, height: 46))
-                .frame(width: 72, height: 72)
+                .overlay(Circle().strokeBorder(.white, lineWidth: 4))
+                .overlay(KettleFace().frame(width: 58, height: 60).offset(y: -2))
+                .frame(width: 88, height: 88)
                 .stickerShadow()
                 .slapOn(rotation: 10, delay: 0.4)
-                .offset(x: 6, y: -8)
+                .padding(.trailing, 2)
                 .accessibilityLabel("Kettle sticker")
         }
-        .padding(.top, 20)
+        .padding(.top, 24)
+        .padding(.bottom, 6)
     }
 
     var stickerPage: some View {
@@ -88,12 +100,17 @@ struct TodayView: View {
                       tapeAlignment: .topLeading, ruled: 22, padding: EdgeInsets(top: 14, leading: 12, bottom: 10, trailing: 12)) {
                 VStack(alignment: .leading, spacing: 0) {
                     Text("streak").hand(21, color: Palette.tangerineDeep)
-                    ZStack {
-                        DrawnStroke(shape: HandCircle(), color: Palette.tangerine, lineWidth: 3, delay: 1.3)
-                            .frame(width: 76, height: 66)
-                        Text("\(streak.current)").bodyText(48, .heavy)
-                    }
-                    .frame(width: 70, height: 62)
+                    Text("\(streak.current)").bodyText(48, .heavy)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                        .padding(.horizontal, 12)
+                        .frame(minWidth: 70, minHeight: 62)
+                        .background {
+                            // The hand-drawn loop grows with the number.
+                            DrawnStroke(shape: HandCircle(), color: Palette.tangerine, lineWidth: 3, delay: 1.3)
+                                .padding(.horizontal, -2)
+                        }
+                        .frame(maxWidth: 120, alignment: .leading)
                     Text("workouts in a row").hand(19)
                     Text("best ever: \(streak.best)").hand(19, color: Palette.muted)
                 }
@@ -104,14 +121,22 @@ struct TodayView: View {
                       tapeAlignment: .topTrailing, ruled: 22, padding: EdgeInsets(top: 14, leading: 12, bottom: 10, trailing: 12)) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("last 30 days").hand(21, color: Palette.skyDeep)
-                    Text(c.percent.map { "\($0)%" } ?? "–")
-                        .bodyText(44, .heavy)
-                        .background(alignment: .bottom) { Highlighter().frame(height: 22).padding(.horizontal, -5).offset(y: -4) }
-                    Text("\(c.done) of \(c.planned) planned").hand(19)
-                    Text(c.excused > 0 ? "sick days excused" : "sick days don't count").hand(19, color: Palette.muted)
+                    if let percent = c.percent {
+                        Text("\(percent)%")
+                            .bodyText(44, .heavy)
+                            .background(alignment: .bottom) { Highlighter().frame(height: 22).padding(.horizontal, -5).offset(y: -4) }
+                        Text("\(c.done) of \(c.planned) planned").hand(19)
+                        Text(c.excused > 0 ? "sick days excused" : "sick days don't count").hand(19, color: Palette.muted)
+                    } else {
+                        Text("new!")
+                            .bodyText(44, .heavy)
+                            .background(alignment: .bottom) { Highlighter().frame(height: 22).padding(.horizontal, -5).offset(y: -4) }
+                        Text("your first month\nstarts now").hand(19)
+                    }
                 }
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("Last 30 days: \(c.percent ?? 0) percent, \(c.done) of \(c.planned) planned workouts done.")
+                .accessibilityLabel(c.percent.map { "Last 30 days: \($0) percent, \(c.done) of \(c.planned) planned workouts done." }
+                                    ?? "Last 30 days: new. Your first month starts now.")
             }
         }
         .padding(.top, 4)
@@ -126,7 +151,7 @@ struct TodayView: View {
                     .frame(width: 28, height: 30)
                     .nudge()
             }
-            .padding(.trailing, 10)
+            .padding(.trailing, 78) // stay clear of the barbell sticker on the button
             Button {
                 showWorkout = true
             } label: {
@@ -175,8 +200,13 @@ struct TodayView: View {
                             DoodleSquare().stroke(Palette.ink, lineWidth: 2)
                         }
                         .frame(width: 20, height: 20)
-                        Text(s.kind.displayName.capitalizedFirst).bodyText(15)
-                        Text(s.shortSummary).bodyText(15, .medium, color: Palette.muted)
+                        Text(s.kind.displayName.capitalizedFirst).bodyText(15).fixedSize()
+                        ViewThatFits(in: .horizontal) {
+                            Text(s.todayDetail(compact: false)).lineLimit(1)
+                            Text(s.todayDetail(compact: true)).lineLimit(1)
+                            Text(s.todayDetail(compact: true)).lineLimit(1).minimumScaleFactor(0.75)
+                        }
+                        .bodyText(15, .medium, color: Palette.muted)
                     }
                     .accessibilityElement(children: .combine)
                 }
