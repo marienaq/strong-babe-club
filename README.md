@@ -37,7 +37,7 @@ Packages/WorkoutCore/        Swift package, platform-agnostic, zero dependencies
     Timer/                   interval timer state machine (EMOM, work/rest)
     Import/                  bounded coach-history importer, backups, safe CSV
   Sources/wcplan/            dev CLI: print planned workouts for a date range
-  Tests/                     158 unit tests + invented fixture
+  Tests/                     178 unit tests + invented fixture
   TestSupport/XCTest/        tiny XCTest shim for machines without Xcode
 App/StrongBabeClub/          iOS 17 SwiftUI app
   Store/                     AppStore (@Observable) over a Repository protocol
@@ -92,16 +92,27 @@ python3 tools/import_sheet.py ~/path/to/sheet.xlsx --out-dir ~/strong-babe-data
 
 | Area | Status |
 |---|---|
-| WorkoutCore build (macOS) | Verified locally (`swift build`, Swift 5.10, Command Line Tools) |
-| WorkoutCore tests | Verified locally: **158 tests, 0 failures**, ~92% line coverage, via the XCTest shim runner (`scripts/test-core.sh`). CI also runs them under real XCTest. |
-| Planner output | Spot-checked locally with `wcplan` against real imported history (test week, block 1 weeks) |
-| App UI layer (views, store, timers, services: 21 files) | **Type-checked** locally against the macOS 14 SDK (`scripts/typecheck-app.sh`). Not yet compiled for iOS. |
-| SwiftData persistence + `@main` | **Not compiled locally** (SwiftData macros ship only with Xcode). Covered by CI's iOS build and `SwiftDataRepositoryTests`. |
-| iOS build, app unit tests, UI smoke test | **Pending CI** (GitHub Actions `macos-15` with Xcode) or a local Xcode install |
-| XcodeGen project | Verified locally: `xcodegen generate` produces the project, Info.plist and entitlements |
-| On-device behaviour (fonts, haptics, notifications, file protection, animations) | Not verified yet: needs a device |
+| WorkoutCore tests | Verified locally with Xcode 26.6: **178 tests, 0 failures** (`swift test`, and the same suite via the shim runner) |
+| iOS app build + tests | Verified locally on the iOS 26.5 simulator: `xcodebuild test` passes 14 app unit tests and 3 UI tests (1 opt-in import repro skipped) |
+| Import of a real 376-workout history | Verified through the Files picker on a simulator: 372 imported, persisted, and shown in Journal and Progress |
+| Screens | Checked by simulator screenshots (Today, strength, metabolic, Progress, Journal, Settings, bear gallery) |
+| On a real device (haptics, sounds over music, notifications, file protection) | Not verified yet |
 
 Known gaps / deferred: app icon, Lock Screen timer, Apple Watch, the AI planner, CSV import (JSON import only), movement library editing, "Celebrate"/"Variety" coach notes.
+
+## Test mode (for UI tests and screenshots only)
+
+Launching with `-ui-testing` switches on test mode:
+- a fixed date (Mon Oct 19 2026);
+- invented sample data, kept in memory only (nothing is saved);
+- separate preferences;
+- a purple "test mode" badge.
+
+`-sbc-*` flags open specific screens (see `App/StrongBabeClub/Store/DebugRoute.swift`). **Never launch test mode on a simulator or phone someone is using**: anything they do in that process is thrown away when it's relaunched.
+
+## Timer sounds
+
+The bell, "go" and rest cues are synthesized by `scripts/make-sounds.py` (no third-party audio). They play over music and with the silent switch on, each paired with a haptic. When the phone is locked, the same sounds come from local notifications. There's a Settings toggle to turn sounds off.
 
 ## Roadmap
 

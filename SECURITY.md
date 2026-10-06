@@ -16,6 +16,8 @@ What we protect: the owner's training history, body-related notes ("knee felt of
 | Data leaves the device | No network code at all (no URLSession, no analytics/crash SDKs, no CloudKit: `cloudKitDatabase: .none`). App Transport Security is left at its secure defaults. Exports only happen when the user taps Export and picks a destination. |
 | Logs leak personal data | `os.Logger` only. We log counts and error *types* (`privacy: .public`); never notes, names, weights or dates. Nothing personal is printed in crash paths. |
 | A malicious or corrupted import file | User-picked via `fileImporter` (system picker, security-scoped access released after reading); size checked before reading (20 MB cap); strict typed decoding (wrong types reject the record); every number range-checked (weights 0–1000 lb, reps 0–1000, durations ≤ 4 h, dates 2000–2100); strings stripped of control characters and truncated; counts capped; the whole import is refused if more than half the records are invalid. Nothing is evaluated or executed. Covered by unit tests with malformed inputs. |
+| A half-finished import corrupts the journal | Imports are decoded off the main thread, then saved in batches. If any batch fails, everything written so far is removed again (and any replaced records restored), and the error is shown. Re-importing replaces earlier imports but never overwrites days logged in the app. |
+| Test data mixed with real data | Test mode (`-ui-testing`) uses an in-memory store, separate preferences, a fixed date, and a visible badge. It is never used on a device someone is using. |
 | CSV export opened in a spreadsheet runs a formula | Cells beginning with `= + - @` (that aren't numbers) are prefixed with `'`; quoting per RFC 4180. |
 | Supply-chain compromise | Zero third-party Swift dependencies. GitHub Actions pinned to full commit SHAs with version comments; Dependabot keeps them current. CI downloads XcodeGen and gitleaks at pinned versions and verifies SHA-256 checksums. Workflows run with `permissions: contents: read` (CodeQL adds only `security-events: write`). `persist-credentials: false` on checkout. |
 | Secrets committed to the public repo | There are no secrets. `DEVELOPMENT_TEAM` is empty in `project.yml` (set it locally in Xcode). CI runs gitleaks over the full git history; GitHub secret scanning + push protection should be enabled in repo settings. `.gitignore` blocks `.env*`, certificates and provisioning profiles. |
@@ -31,7 +33,7 @@ Out of scope: a jailbroken device, an attacker with the unlocked phone, or someo
 ## Data handling
 
 - **Stored on device:** workouts and their sections, set/round logs, feedback and notes, sticker picks, training maxes, benchmarks, goals and settings (including the optional display name). Store: `Application Support/StrongBabeClub/journal.store`.
-- **UserDefaults:** one UI preference (the Progress chart tab) via `@AppStorage`, declared in `PrivacyInfo.xcprivacy` as `CA92.1`.
+- **UserDefaults:** UI preferences only (Progress chart tab and lift, timer sounds on/off) via `@AppStorage`, declared in `PrivacyInfo.xcprivacy` as `CA92.1`.
 - **Privacy manifest:** `NSPrivacyTracking = false`, no tracking domains, no collected data types.
 - **Permissions:** only notifications, requested at runtime the first time a timer starts. No camera, location, health, contacts or tracking prompts.
 - **Deleting data:** Settings → Delete all data removes every record; deleting the app removes the store.
