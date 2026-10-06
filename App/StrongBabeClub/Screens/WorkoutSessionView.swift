@@ -8,9 +8,9 @@ struct WorkoutSessionView: View {
     var workoutID: UUID
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
-    @State private var current: SectionKind = .warmup
+    @State private var current: SectionKind = DebugRoute.section.flatMap(SectionKind.init(rawValue:)) ?? .warmup
     @State private var startedAt = Date()
-    @State private var showFinish = false
+    @State private var showFinish = DebugRoute.open == "finish"
 
     var body: some View {
         if let w = store.workout(id: workoutID) {
@@ -18,11 +18,20 @@ struct WorkoutSessionView: View {
                 PaperBackground()
                 VStack(spacing: 0) {
                     header(w)
-                    ScrollView {
-                        content(w)
-                            .padding(.leading, 44)
-                            .padding(.trailing, 20)
-                            .padding(.vertical, 8)
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            content(w)
+                                .padding(.leading, 44)
+                                .padding(.trailing, 20)
+                                .padding(.vertical, 8)
+                            Color.clear.frame(height: 1).id("session-bottom")
+                        }
+                        .scrollDismissesKeyboard(.interactively)
+                        .task(id: current) {
+                            guard DebugRoute.scrollBottom else { return }
+                            try? await Task.sleep(nanoseconds: 1_200_000_000)
+                            proxy.scrollTo("session-bottom", anchor: .bottom)
+                        }
                     }
                     footer(w)
                 }

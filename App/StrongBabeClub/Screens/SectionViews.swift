@@ -1,6 +1,64 @@
 import SwiftUI
 import WorkoutCore
 
+// MARK: - History panel
+
+/// Collapsible "view history" list; renders nothing when there's no history.
+@MainActor
+struct HistoryPanel: View {
+    struct Row: Identifiable {
+        var id: String
+        var date: String
+        var title: String?
+        var detail: String
+    }
+
+    var rows: [Row]
+    var tint: Color
+    @State private var expanded = DebugRoute.expandHistory
+
+    var body: some View {
+        if !rows.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .heavy))
+                            .rotationEffect(.degrees(expanded ? 90 : 0))
+                        Text(expanded ? "hide history" : "view history").hand(21)
+                        Text("· last \(rows.count)").hand(18, color: Palette.muted)
+                        Spacer()
+                    }
+                    .foregroundStyle(tint)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("viewHistory")
+                .accessibilityLabel(expanded ? "Hide history" : "View history, last \(rows.count) sessions")
+                if expanded {
+                    ForEach(rows) { row in
+                        VStack(alignment: .leading, spacing: 1) {
+                            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                Text(row.date).hand(19)
+                                if let title = row.title { Text(title).bodyText(12, .bold, color: Palette.muted).lineLimit(1) }
+                            }
+                            Text(row.detail).bodyText(14, .semibold, color: Palette.note)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(.white.opacity(0.85)))
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Strength
 
 @MainActor
@@ -10,6 +68,7 @@ struct StrengthSectionView: View {
     @Environment(AppStore.self) private var store
     @State private var timer: IntervalTimerModel?
     @State private var weights: [String: String] = [:]
+    @FocusState private var focused: String?
 
     var calc: PlateCalculator { PlateCalculator(inventory: store.settings.equipment) }
 
@@ -18,6 +77,7 @@ struct StrengthSectionView: View {
             liftCard
             timerRow
             ForEach(section.items) { item in setTable(item) }
+            HistoryPanel(rows: historyRows, tint: Palette.tangerineDeep)
             NotesField(workoutID: workout.id, section: section, prompt: "knee felt good today…")
         }
         .onAppear {
@@ -25,7 +85,28 @@ struct StrengthSectionView: View {
                 timer = IntervalTimerModel(plan: plan, title: "\(section.lift?.displayName ?? "Strength") timer")
             }
         }
+        // Leaving a weight field (next field, tap elsewhere, Done) logs that set.
+        .onChange(of: focused) { old, new in
+            if let old, old != new { commitTyped(old) }
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { focused = nil }.fontWeight(.heavy)
+            }
+        }
         .modifier(ScenePhaseTimerBridge(timer: timer))
+    }
+
+    var historyRows: [HistoryPanel.Row] {
+        section.items.compactMap { item -> [HistoryPanel.Row]? in
+            guard let lift = Lift(movementName: item.movementName) else { return nil }
+            return RecentHistory.liftSessions(lift, before: workout.date, in: store.visibleWorkouts).map { s in
+                HistoryPanel.Row(id: "\(lift.rawValue)-\(s.date.iso)", date: s.date.shortDisplay,
+                                 title: section.items.count > 1 ? lift.displayName : nil,
+                                 detail: s.sets.map { "\(formatPounds($0.weight)) × \($0.reps)" }.joined(separator: " · "))
+            }
+        }.flatMap { $0 }
     }
 
     var liftCard: some View {
@@ -46,14 +127,15 @@ struct StrengthSectionView: View {
     @ViewBuilder var timerRow: some View {
         if let timer {
             let snap = timer.snapshot
-            let nextSet = (snap.phase?.round ?? 1) + (timer.isRunning ? 1 : 0)
-            let upcoming = section.items.first?.plannedSets.first { $0.setNumber == min(nextSet, section.items.first?.plannedSets.count ?? 1) }
+            let total = section.items.first?.plannedSets.count ?? 1
+            let nextSet = min((snap.phase?.round ?? 1) + (timer.isRunning ? 1 : 0), total)
+            let upcoming = section.items.first?.plannedSets.first { $0.setNumber == nextSet }
             HStack(spacing: 14) {
                 TimerRing(progress: snap.isFinished ? 1 : snap.phaseProgress, color: Palette.tangerine, track: Palette.dot,
                           label: formatClock(snap.remainingInPhase), sublabel: nil, size: 78, lineWidth: 9)
                     .accessibilityLabel("\(snap.remainingInPhase) seconds until set \(nextSet)")
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(snap.isFinished ? "all sets done!" : timer.isRunning ? "set \(nextSet) starts soon" : "start the clock")
+                    Text(snap.isFinished ? "all sets done!" : timer.isRunning ? "set \(nextSet) starts soon" : "log set 1 to start")
                         .hand(22)
                     if let upcoming, let load = calc.loadout(for: upcoming.weight) {
                         Text(load.sentence).bodyText(13, .semibold, color: Palette.muted)
@@ -62,6 +144,7 @@ struct StrengthSectionView: View {
                 Spacer(minLength: 0)
                 RoundIconButton(systemName: timer.isRunning ? "pause.fill" : "play.fill",
                                 label: timer.isRunning ? "Pause timer" : "Start timer") { timer.toggle() }
+                    .accessibilityIdentifier("strengthTimer")
             }
             .padding(.horizontal, 4)
         }
@@ -71,18 +154,23 @@ struct StrengthSectionView: View {
         let lift = Lift(movementName: item.movementName)
         let last = lift.flatMap { store.lastSession(of: $0, before: workout.date) }
         let best = lift.flatMap { store.bestTop(of: $0, before: workout.date) } ?? 0
-        let columns = [GridItem(.fixed(34)), GridItem(.fixed(40)), GridItem(.flexible()), GridItem(.fixed(74)), GridItem(.fixed(44))]
         return PaperCard(ruled: 44, padding: EdgeInsets(top: 10, leading: 12, bottom: 6, trailing: 12)) {
             VStack(alignment: .leading, spacing: 0) {
                 if section.items.count > 1 { Text("\(item.letter): \(item.movementName)").hand(20, color: Palette.tangerineDeep) }
-                LazyVGrid(columns: columns, alignment: .leading, spacing: 0) {
-                    Group {
-                        Text("set"); Text("reps"); Text("last time"); Text("lb").frame(maxWidth: .infinity); Text("")
+                // Plain Grid (not lazy): every row stays in the hierarchy while the keyboard is up.
+                Grid(alignment: .leading, horizontalSpacing: 6, verticalSpacing: 0) {
+                    GridRow {
+                        Text("set").frame(width: 34, alignment: .leading)
+                        Text("reps").frame(width: 40, alignment: .leading)
+                        Text("last time").frame(maxWidth: .infinity, alignment: .leading)
+                        Text("lb").frame(width: 74)
+                        Text("").frame(width: 44)
                     }
                     .hand(17, color: Palette.muted)
                     .frame(height: 24)
                     ForEach(item.plannedSets, id: \.setNumber) { p in
-                        setRow(item: item, planned: p, last: last)
+                        GridRow { setRow(item: item, planned: p, last: last) }
+                            .frame(height: 44)
                     }
                 }
                 if let top = item.plannedSets.last?.weight, best > 0, top > best {
@@ -93,32 +181,39 @@ struct StrengthSectionView: View {
         }
     }
 
+    static func key(_ item: SectionItem, _ setNumber: Int) -> String { "\(item.id.uuidString)|\(setNumber)" }
+
     @ViewBuilder
     func setRow(item: SectionItem, planned p: PlannedSet, last: LiftSession?) -> some View {
-        let key = "\(item.id)-\(p.setNumber)"
+        let key = Self.key(item, p.setNumber)
         let logged = item.setLogs.first { $0.setNumber == p.setNumber }
         let lastW = last?.sets.first { $0.setNumber == p.setNumber }?.weight
-        Text("\(p.setNumber)").hand(24, color: logged == nil ? Palette.faint : Palette.ink).frame(height: 44)
-        Text("×\(p.reps)").bodyText(16, .bold, color: Palette.muted)
-        Text(lastW.map(formatPounds) ?? "–").hand(19, .semibold, color: Palette.faint)
+        Text("\(p.setNumber)").hand(24, color: logged == nil ? Palette.faint : Palette.ink).frame(width: 34, height: 44)
+        Text("×\(p.reps)").bodyText(16, .bold, color: Palette.muted).frame(width: 40, alignment: .leading)
+        Text(lastW.map(formatPounds) ?? "–").hand(19, .semibold, color: Palette.faint).frame(maxWidth: .infinity, alignment: .leading)
         if let logged {
-            Text(formatPounds(logged.weight)).hand(27).frame(maxWidth: .infinity)
+            Text(formatPounds(logged.weight)).hand(27).frame(width: 74)
+                .accessibilityIdentifier("logged-\(item.letter)-\(p.setNumber)")
         } else {
             TextField(formatPounds(p.weight), text: Binding(get: { weights[key] ?? "" }, set: { weights[key] = $0 }))
                 .font(Typeface.hand(26))
                 .multilineTextAlignment(.center)
                 .numberKeyboard()
+                .submitLabel(.done)
+                .focused($focused, equals: key)
+                .onSubmit { commitTyped(key) }
                 .padding(.bottom, 2)
-                .overlay(alignment: .bottom) { Rectangle().fill(Palette.inputLine).frame(height: 2.5) }
+                .overlay(alignment: .bottom) { Rectangle().fill(focused == key ? Palette.tangerine : Palette.inputLine).frame(height: 2.5) }
+                .frame(width: 74)
                 .accessibilityLabel("Weight for set \(p.setNumber)")
+                .accessibilityIdentifier("weight-\(item.letter)-\(p.setNumber)")
         }
         Button {
-            if logged != nil {
+            if let logged {
+                weights[key] = formatPounds(logged.weight)
                 store.unlogSet(workout: workout.id, section: section.id, item: item.id, setNumber: p.setNumber)
             } else {
-                let w = Double(weights[key]?.replacingOccurrences(of: ",", with: ".") ?? "") ?? p.weight
-                store.logSet(workout: workout.id, section: section.id, item: item.id, setNumber: p.setNumber, reps: p.reps, weight: w)
-                Haptics.play(.tap)
+                log(item: item, planned: p, typed: weights[key])
             }
         } label: {
             if logged != nil {
@@ -133,8 +228,29 @@ struct StrengthSectionView: View {
             }
         }
         .buttonStyle(.plain)
+        .frame(width: 44)
         .accessibilityLabel(logged != nil ? "Set \(p.setNumber) done" : "Mark set \(p.setNumber) done")
         .accessibilityIdentifier("set-\(item.letter)-\(p.setNumber)")
+    }
+
+    /// A weight was typed and the field was left: mark that set done.
+    func commitTyped(_ key: String) {
+        guard let typed = weights[key]?.trimmingCharacters(in: .whitespaces), !typed.isEmpty else { return }
+        let parts = key.split(separator: "|")
+        guard parts.count == 2, let setNumber = Int(parts[1]),
+              let item = section.items.first(where: { $0.id.uuidString == parts[0] }),
+              let planned = item.plannedSets.first(where: { $0.setNumber == setNumber }),
+              !item.setLogs.contains(where: { $0.setNumber == setNumber }) else { return }
+        log(item: item, planned: planned, typed: typed)
+    }
+
+    func log(item: SectionItem, planned p: PlannedSet, typed: String?) {
+        let parsed = typed.flatMap { Double($0.replacingOccurrences(of: ",", with: ".")) }
+        let weight = parsed.flatMap { $0.isFinite && $0 >= 0 && $0 <= 1000 ? $0 : nil } ?? p.weight
+        store.logSet(workout: workout.id, section: section.id, item: item.id, setNumber: p.setNumber, reps: p.reps, weight: weight)
+        Haptics.play(.tap)
+        // Start the countdown to the next set if the clock isn't running yet.
+        if let timer, !timer.isRunning, !timer.snapshot.isFinished { timer.start() }
     }
 }
 
@@ -148,13 +264,10 @@ struct MetabolicSectionView: View {
     @State private var timer: IntervalTimerModel?
     @State private var inputs: [Int: (String, String)] = [:]
 
-    var roundCount: Int {
-        switch section.format {
-        case .amrapWithRest, .interval: return section.rounds ?? 1
-        case .tabata: return section.items.count
-        default: return 1
-        }
-    }
+    /// One log row per prescribed round (matches the timer).
+    var roundCount: Int { section.prescribedRounds }
+    var isTime: Bool { section.format == .forTime || section.format == .ladder }
+    var isRounds: Bool { section.format == .amrap || section.format == .amrapWithRest }
 
     var body: some View {
         let previous = store.previousResult(for: section, before: workout.date)
@@ -162,6 +275,7 @@ struct MetabolicSectionView: View {
             card
             timerRow
             roundsTable(previous)
+            HistoryPanel(rows: historyRows, tint: Palette.skyDeep)
             NotesField(workoutID: workout.id, section: section, prompt: "felt strong on the swings…")
         }
         .onAppear {
@@ -169,7 +283,22 @@ struct MetabolicSectionView: View {
                 timer = IntervalTimerModel(plan: plan, title: section.name ?? "Metabolic timer")
             }
         }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { hideKeyboard() }.fontWeight(.heavy)
+            }
+        }
         .modifier(ScenePhaseTimerBridge(timer: timer))
+    }
+
+    var historyRows: [HistoryPanel.Row] {
+        RecentHistory.metabolic(for: section, before: workout.date, in: store.visibleWorkouts).map { e in
+            let rounds = e.roundLogs.map(describe).joined(separator: ", ")
+            let detail = e.roundLogs.count > 1 ? "\(rounds) = \(e.score)" : e.score.description
+            return HistoryPanel.Row(id: e.date.iso + e.name, date: e.date.shortDisplay,
+                                    title: e.match == .sameFormat ? e.name : nil, detail: detail)
+        }
     }
 
     var card: some View {
@@ -177,6 +306,7 @@ struct MetabolicSectionView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("metabolic").hand(20, color: Palette.skyDeep)
                 Text(section.name ?? section.format.nameStructure).bodyText(22, .heavy).accessibilityAddTraits(.isHeader)
+                    .padding(.trailing, section.benchmarkID != nil ? 64 : 0)
                 Text(section.instructions).bodyText(14, .semibold)
                 ForEach(section.items) { item in
                     HStack(spacing: 10) {
@@ -224,7 +354,8 @@ struct MetabolicSectionView: View {
                     .accessibilityLabel(snap.isFinished ? "Timer done" : "\(snap.remainingInPhase) seconds left, \(isRest ? "rest" : "work")")
                 VStack(alignment: .leading, spacing: 8) {
                     Text("round \(min(snap.phase?.round ?? roundsTotal, roundsTotal)) of \(roundsTotal)").hand(24)
-                    Text(section.restSec.map { "then \(formatClock($0)) rest. Phone buzzes at each switch." } ?? "Phone buzzes at each switch.")
+                        .accessibilityIdentifier("roundOfTotal")
+                    Text(section.restSec.map { "then \(formatClock($0)) rest. Bell at each round, phone buzzes too." } ?? "Bell at each round, phone buzzes too.")
                         .bodyText(13, .semibold, color: Palette.muted)
                     HStack(spacing: 10) {
                         Button(timer.isRunning ? "pause" : "start") { timer.toggle() }
@@ -245,14 +376,17 @@ struct MetabolicSectionView: View {
         }
     }
 
+    var todayHeader: String {
+        if section.format == .ladder || (section.format == .forTime && roundCount > 1) { return "split" }
+        return isTime ? "time" : isRounds ? "rounds + reps" : "reps"
+    }
+
     func roundsTable(_ previous: (date: LocalDate, logs: [RoundLog])?) -> some View {
-        let isTime = section.format == .forTime
-        let isRounds = section.format == .amrap || section.format == .amrapWithRest
-        return PaperCard(ruled: 38, padding: EdgeInsets(top: 8, leading: 14, bottom: 4, trailing: 14)) {
+        PaperCard(ruled: 38, padding: EdgeInsets(top: 8, leading: 14, bottom: 4, trailing: 14)) {
             VStack(spacing: 0) {
                 HStack {
-                    Text("round").frame(width: 54, alignment: .leading)
-                    Text("today").frame(maxWidth: .infinity)
+                    Text(roundCount > 1 && isTime ? "rung" : "round").frame(width: 54, alignment: .leading)
+                    Text(todayHeader).frame(maxWidth: .infinity)
                     Text(previous.map { "last time (\($0.date.shortMonthName))" } ?? "last time").frame(maxWidth: .infinity, alignment: .trailing)
                 }
                 .hand(17, color: Palette.muted).frame(height: 26)
@@ -278,6 +412,7 @@ struct MetabolicSectionView: View {
                         Text(prev.map(describe) ?? "–").hand(20, .semibold, color: Palette.faint).frame(maxWidth: .infinity, alignment: .trailing)
                     }
                     .frame(height: 38)
+                    .accessibilityIdentifier("logRow-\(r)")
                 }
                 if let previous, let ahead = aheadBy(previous.logs) {
                     Text(ahead > 0 ? "+\(ahead) ahead!" : ahead == 0 ? "neck and neck!" : "\(ahead) behind, keep going!")
@@ -300,17 +435,17 @@ struct MetabolicSectionView: View {
             .font(Typeface.hand(24))
             .multilineTextAlignment(.center)
             .numberKeyboard(decimal: false)
-            .frame(width: section.format == .forTime ? 70 : 40, height: 30)
+            .frame(width: isTime ? 70 : 40, height: 30)
             .overlay(alignment: .bottom) { Rectangle().fill(slot == 0 ? Palette.sky : Palette.inputLine).frame(height: 2.5) }
-            .accessibilityLabel("Round \(round) \(slot == 0 ? (section.format == .forTime ? "time" : "rounds") : "reps")")
+            .accessibilityLabel("Round \(round) \(slot == 0 ? (isTime ? "time" : "rounds") : "reps")")
     }
 
     func commit(_ round: Int, _ pair: (String, String)) {
-        if section.format == .forTime {
+        if isTime {
             let parts = pair.0.split(separator: ":").compactMap { Int($0) }
             let secs = parts.count == 2 ? parts[0] * 60 + parts[1] : parts.first
             store.logRound(workout: workout.id, section: section.id, round: round, rounds: nil, reps: nil, timeSec: secs)
-        } else if section.format == .amrap || section.format == .amrapWithRest {
+        } else if isRounds {
             store.logRound(workout: workout.id, section: section.id, round: round, rounds: Int(pair.0), reps: Int(pair.1) ?? 0, timeSec: nil)
         } else {
             store.logRound(workout: workout.id, section: section.id, round: round, rounds: nil, reps: Int(pair.1), timeSec: nil)
@@ -333,6 +468,7 @@ struct MetabolicSectionView: View {
         return a.improvement(over: b, repsPerRound: section.repsPerRound)
     }
 }
+
 
 // MARK: - Warm-up / cool-down
 
