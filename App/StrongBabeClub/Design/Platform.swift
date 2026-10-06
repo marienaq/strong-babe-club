@@ -38,16 +38,24 @@ extension View {
 }
 
 enum Haptics {
-    enum Kind { case tap, success, warning, phaseChange }
+    enum Kind { case tap, success, warning, phaseChange, rest }
 
     @MainActor static func play(_ kind: Kind) {
         #if os(iOS)
         switch kind {
         case .tap: UIImpactFeedbackGenerator(style: .light).impactOccurred()
         case .phaseChange: UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+        case .rest: UIImpactFeedbackGenerator(style: .soft).impactOccurred(intensity: 1)
         case .success: UINotificationFeedbackGenerator().notificationOccurred(.success)
         case .warning: UINotificationFeedbackGenerator().notificationOccurred(.warning)
         }
         #endif
     }
+}
+
+@MainActor
+func hideKeyboard() {
+    #if os(iOS)
+    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    #endif
 }

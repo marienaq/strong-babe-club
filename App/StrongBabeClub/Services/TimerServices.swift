@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import Observation
 import UserNotifications
@@ -29,8 +30,9 @@ final class IntervalTimerModel {
 
     func start() {
         guard !snapshot.isFinished else { return }
+        let fresh = clock.elapsed(at: Date()) == 0
         clock.start(at: Date())
-        Haptics.play(.tap)
+        if fresh, let cue = plan.cue(enteringPhase: 0) { TimerSound.shared.play(cue) } else { Haptics.play(.tap) }
         NotificationScheduler.requestPermissionIfNeeded()
         ticker?.cancel()
         ticker = Task { [weak self] in
@@ -61,8 +63,9 @@ final class IntervalTimerModel {
         let changes = plan.transitions(from: lastElapsed, to: e)
         lastElapsed = e
         snapshot = plan.snapshot(at: e)
-        if !changes.isEmpty {
-            Haptics.play(snapshot.isFinished ? .success : .phaseChange)
+        // Several switches in one tick (e.g. after a hiccup): sound the latest.
+        if let last = changes.last, let cue = plan.cue(enteringPhase: last) {
+            TimerSound.shared.play(cue)
         }
         if snapshot.isFinished, clock.isRunning {
             clock.pause(at: Date())
@@ -75,15 +78,17 @@ final class IntervalTimerModel {
     func didEnterBackground() {
         guard isRunning else { return }
         let upcoming = clock.upcomingTransitions(plan, now: Date())
-        NotificationScheduler.schedule(upcoming.map { item in
+        NotificationScheduler.schedule(upcoming.compactMap { item in
+            guard let cue = plan.cue(enteringPhase: item.phaseIndex) else { return nil }
+            let round = item.phaseIndex < plan.phases.count ? plan.phases[item.phaseIndex].round : plan.phases.last?.round ?? 0
             let label: String
-            if item.phaseIndex >= plan.phases.count {
-                label = "Done! Nice work."
-            } else {
-                let p = plan.phases[item.phaseIndex]
-                label = p.kind == .work ? "Go: round \(p.round)" : "Rest"
+            switch cue {
+            case .workStart: label = "Go: round \(round)"
+            case .roundEndRest: label = "Round \(round) done. Rest."
+            case .roundEndWork: label = "Round done. Round \(round): go!"
+            case .finished: label = "Done! Nice work."
             }
-            return (item.date, label)
+            return (item.date, label, cue)
         }, title: title)
     }
 
@@ -106,7 +111,7 @@ enum NotificationScheduler {
         }
     }
 
-    static func schedule(_ items: [(Date, String)], title: String) {
+    static func schedule(_ items: [(Date, String, TimerCue)], title: String) {
         let center = UNUserNotificationCenter.current()
         cancelTimerAlerts()
         // iOS keeps at most 64 pending requests per app.
@@ -116,7 +121,8 @@ enum NotificationScheduler {
             let content = UNMutableNotificationContent()
             content.title = title
             content.body = item.1
-            content.sound = .default
+            // The matching bundled cue (bell / go / rest); silent when sounds are off.
+            content.sound = TimerSound.enabled ? UNNotificationSound(named: UNNotificationSoundName(item.2.soundFile)) : nil
             let trigger = UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false)
             center.add(UNNotificationRequest(identifier: "\(prefix)\(i)", content: content, trigger: trigger))
         }
@@ -126,5 +132,68 @@ enum NotificationScheduler {
     static func cancelTimerAlerts() {
         let ids = (0..<64).map { "\(prefix)\($0)" }
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
+    }
+}
+
+/// Plays the synthesized timer cues (see scripts/make-sounds.py) over music
+/// and with the silent switch on, each paired with a haptic.
+@MainActor
+final class TimerSound {
+    static let shared = TimerSound()
+    nonisolated static let defaultsKey = "timerSounds"
+
+    /// Settings toggle (on by default).
+    nonisolated static var enabled: Bool { AppDefaults.store.object(forKey: defaultsKey) as? Bool ?? true }
+
+    private var players: [TimerCue: AVAudioPlayer] = [:]
+    private var release: Task<Void, Never>?
+
+    func play(_ cue: TimerCue) {
+        Haptics.play(Self.haptic(for: cue))
+        guard Self.enabled, let player = player(for: cue) else { return }
+        #if os(iOS)
+        let session = AVAudioSession.sharedInstance()
+        do {
+            // .playback ignores the silent switch; mix + duck keeps music going, just quieter.
+            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers, .duckOthers])
+            try session.setActive(true)
+        } catch {
+            Log.timer.error("audio session [\(Log.kind(error), privacy: .public)]")
+        }
+        #endif
+        player.currentTime = 0
+        player.play()
+        // Release the session (un-duck music) once the cue has finished.
+        release?.cancel()
+        let wait = UInt64((player.duration + 0.3) * 1_000_000_000)
+        release = Task {
+            try? await Task.sleep(nanoseconds: wait)
+            guard !Task.isCancelled else { return }
+            #if os(iOS)
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            #endif
+        }
+    }
+
+    static func haptic(for cue: TimerCue) -> Haptics.Kind {
+        switch cue {
+        case .workStart: return .phaseChange
+        case .roundEndRest: return .rest
+        case .roundEndWork: return .warning
+        case .finished: return .success
+        }
+    }
+
+    private func player(for cue: TimerCue) -> AVAudioPlayer? {
+        if let p = players[cue] { return p }
+        let name = (cue.soundFile as NSString).deletingPathExtension
+        guard let url = Bundle.main.url(forResource: name, withExtension: "wav"),
+              let p = try? AVAudioPlayer(contentsOf: url) else {
+            Log.timer.error("missing sound \(cue.rawValue, privacy: .public)")
+            return nil
+        }
+        p.prepareToPlay()
+        players[cue] = p
+        return p
     }
 }
