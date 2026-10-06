@@ -100,7 +100,9 @@ extension SectionKind {
 enum Typeface {
     static func hand(_ size: CGFloat, _ weight: Font.Weight = .bold, relativeTo style: Font.TextStyle = .body) -> Font {
         if FontRegistry.isAvailable("Caveat") {
-            return .custom("Caveat", size: size, relativeTo: style).weight(weight)
+            // Use the variable font's named instances rather than `.weight()`.
+            let name = weight == .regular || weight == .medium || weight == .light ? "Caveat-Regular" : "CaveatRoman-Bold"
+            return .custom(name, size: size, relativeTo: style)
         }
         return .system(size: size, weight: weight, design: .rounded).italic()
     }
@@ -137,5 +139,18 @@ extension View {
     /// Nunito body style.
     func bodyText(_ size: CGFloat, _ weight: Font.Weight = .bold, color: Color = Palette.ink) -> some View {
         font(Typeface.body(size, weight)).foregroundStyle(color)
+    }
+}
+
+extension Text {
+    /// Caveat's slanted last glyph inks past its advance width and SwiftUI
+    /// clips it ("Al|l", "weigh|t"). A little kern after the last character
+    /// keeps it whole without spreading the rest of the word.
+    static func caveat(_ string: String) -> Text {
+        var a = AttributedString(string)
+        if let last = a.characters.indices.last {
+            a[last..<a.endIndex].kern = 2.5
+        }
+        return Text(a)
     }
 }

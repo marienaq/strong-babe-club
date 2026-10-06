@@ -33,7 +33,7 @@ Out of scope: a jailbroken device, an attacker with the unlocked phone, or someo
 ## Data handling
 
 - **Stored on device:** workouts and their sections, set/round logs, feedback and notes, sticker picks, training maxes, benchmarks, goals and settings (including the optional display name). Store: `Application Support/StrongBabeClub/journal.store`.
-- **UserDefaults:** UI preferences only (Progress chart tab and lift, timer sounds on/off) via `@AppStorage`, declared in `PrivacyInfo.xcprivacy` as `CA92.1`.
+- **UserDefaults:** UI preferences only (Progress chart tab, lift, range and year toggle; timer sounds on/off) via `@AppStorage`, declared in `PrivacyInfo.xcprivacy` as `CA92.1`.
 - **Privacy manifest:** `NSPrivacyTracking = false`, no tracking domains, no collected data types.
 - **Permissions:** only notifications, requested at runtime the first time a timer starts. No camera, location, health, contacts or tracking prompts.
 - **Deleting data:** Settings → Delete all data removes every record; deleting the app removes the store.

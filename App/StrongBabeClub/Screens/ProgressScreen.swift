@@ -11,6 +11,9 @@ struct ProgressScreen: View {
     @AppStorage("progress.mode") private var modeRaw: String = Mode.maxWeight.rawValue
     /// Single-select: one lift on the chart at a time.
     @AppStorage("progress.lift") private var liftRaw: String = ""
+    /// Last chosen range chip (3M / 6M / 1Y / All) and the year-vs-year toggle.
+    @AppStorage("progress.range") private var rangeRaw: String = ChartRange.threeMonths.rawValue
+    @AppStorage("progress.byYear") private var byYear = false
     @State private var showNewGoal = false
 
     enum Mode: String, CaseIterable { case maxWeight = "max weight", volume, benchmarks }
@@ -29,7 +32,7 @@ struct ProgressScreen: View {
             HStack(spacing: 18) {
                 ForEach(Mode.allCases, id: \.self) { m in
                     Button { mode = m } label: {
-                        Text(m.rawValue).hand(22, color: mode == m ? Palette.ink : Palette.faint)
+                        Text.caveat(m.rawValue).hand(22, color: mode == m ? Palette.ink : Palette.faint)
                             .overlay(alignment: .bottom) {
                                 if mode == m { Squiggle().stroke(Palette.tangerine, style: StrokeStyle(lineWidth: 3, lineCap: .round)).frame(height: 8).offset(y: 6) }
                             }
@@ -38,12 +41,17 @@ struct ProgressScreen: View {
                     .accessibilityAddTraits(mode == m ? .isSelected : [])
                 }
             }
-            PaperCard(rotation: -0.6, tape: WashiTape(color: Palette.bubblegum, stripe: Palette.bubblegumLight, width: 60, angle: -4),
+            // No card tilt here: rotating a horizontally scrolling chart skews the plot against its axis.
+            PaperCard(rotation: 0, tape: WashiTape(color: Palette.bubblegum, stripe: Palette.bubblegumLight, width: 60, angle: -4),
                       tapeAlignment: .topLeading, padding: EdgeInsets(top: 12, leading: 8, bottom: 6, trailing: 8)) {
                 switch mode {
                 case .maxWeight, .volume: liftChart
                 case .benchmarks: benchmarkTable
                 }
+            }
+            if mode != .benchmarks {
+                ChartRangeControls(range: Binding(get: { ChartRange(rawValue: rangeRaw) ?? .threeMonths }, set: { rangeRaw = $0.rawValue }),
+                                   byYear: $byYear)
             }
             if mode != .benchmarks { liftChips }
             ForEach(store.plateCeilingWarnings(), id: \.lift) { w in
@@ -66,42 +74,25 @@ struct ProgressScreen: View {
 
     var liftChart: some View {
         // Full history: every session's top set (imported and logged in the app).
-        let series = [selectedLift].map { lift in
-            (lift, ProgressSeries.lift(lift, workouts: store.visibleWorkouts))
-        }
-        let span = series.first.flatMap { s in s.1.first.map { $0.date.days(until: s.1.last!.date) } } ?? 0
-        let monthStep = span > 540 ? 6 : span > 270 ? 3 : span > 120 ? 2 : 1
+        let lift = selectedLift
+        let metric: ChartMetric = mode == .volume ? .volume : .topSet
+        let sessions = ProgressSeries.lift(lift, workouts: store.visibleWorkouts)
+        let range = ChartRange(rawValue: rangeRaw) ?? .threeMonths
+        let color = Self.liftColors[lift] ?? Palette.tangerine
         return Group {
-            if series.allSatisfy({ $0.1.isEmpty }) {
-                Text("No \(selectedLift.displayName.lowercased()) sets logged yet. Check off your sets and the line starts drawing here.")
-                    .hand(19, color: Palette.muted).frame(maxWidth: .infinity, minHeight: 184)
+            if sessions.isEmpty {
+                Text("No \(lift.displayName.lowercased()) sets logged yet. Check off your sets and the line starts drawing here.")
+                    .hand(19, color: Palette.muted).frame(maxWidth: .infinity, minHeight: 210)
+            } else if byYear {
+                YearOverlayChart(years: ProgressChart.byYear(sessions, metric: metric), metric: metric)
+                    .frame(height: 230)
             } else {
-                Chart {
-                    ForEach(series, id: \.0) { lift, points in
-                        ForEach(points, id: \.date) { p in
-                            let date = Calendar(identifier: .gregorian).date(from: DateComponents(year: p.date.year, month: p.date.month, day: p.date.day)) ?? .now
-                            LineMark(x: .value("Date", date), y: .value(mode == .volume ? "Volume (lb)" : "Top set (lb)", mode == .volume ? p.volume : p.topWeight))
-                                .foregroundStyle(by: .value("Lift", lift.displayName))
-                                .lineStyle(StrokeStyle(lineWidth: points.count > 30 ? 2.5 : 3.5, lineCap: .round, lineJoin: .round))
-                            PointMark(x: .value("Date", date), y: .value("lb", mode == .volume ? p.volume : p.topWeight))
-                                .foregroundStyle(by: .value("Lift", lift.displayName))
-                                .symbolSize(points.count > 30 ? 18 : 40)
-                        }
-                    }
-                }
-                .chartForegroundStyleScale(domain: series.map { $0.0.displayName }, range: series.map { Self.liftColors[$0.0] ?? Palette.ink })
-                .chartLegend(.hidden)
-                .chartYAxis { AxisMarks(position: .leading) { _ in AxisGridLine(stroke: StrokeStyle(lineWidth: 1.5, dash: [4, 5])).foregroundStyle(Palette.dot); AxisValueLabel().font(Typeface.hand(15)) } }
-                .chartXAxis {
-                    AxisMarks(values: .stride(by: .month, count: monthStep)) { _ in
-                        AxisValueLabel(format: span > 270 ? .dateTime.month(.abbreviated).year(.twoDigits) : .dateTime.month(.abbreviated))
-                            .font(Typeface.hand(15))
-                    }
-                }
-                .frame(height: 184)
-                .accessibilityLabel(mode == .volume ? "Volume per session" : "Top set per session")
+                LiftTimelineChart(points: ProgressChart.segmented(sessions, metric: metric), metric: metric, range: range, color: color)
+                    .id("\(lift.rawValue)-\(metric.rawValue)-\(range.rawValue)")
+                    .frame(height: 210)
             }
         }
+        .padding(.top, 14)
     }
 
     var liftChips: some View {
@@ -196,7 +187,7 @@ struct ProgressScreen: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("goals").hand(24)
                 Spacer()
-                Button("+ new goal") { showNewGoal = true }.font(Typeface.hand(20)).foregroundStyle(Palette.berry)
+                Button { showNewGoal = true } label: { Text.caveat("+ new goal").hand(20, color: Palette.berry) }
             }
             if store.goals.isEmpty { Text("Set a goal, like Deadlift 200 lb by Jan 15.").hand(18, color: Palette.muted) }
             ForEach(store.goals) { g in

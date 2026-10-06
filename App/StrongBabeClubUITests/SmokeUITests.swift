@@ -114,4 +114,31 @@ final class RoundTwoUITests: XCTestCase {
         XCTAssertTrue(last.exists)
         XCTAssertFalse(app.descendants(matching: .any)["logRow-17"].exists)
     }
+
+    /// Range chips and the year toggle switch the chart and remember nothing
+    /// outside test mode (test mode has its own preferences).
+    func testProgressRangeChipsAndYearToggle() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-ui-testing", "-sbc-tab", "progress"]
+        app.launch()
+        let timeline = app.descendants(matching: .any)["chart-timeline"]
+        XCTAssertTrue(timeline.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["range-3M"].isSelected, "3M is the default")
+
+        for r in ["1Y", "All", "6M"] {
+            app.buttons["range-\(r)"].tap()
+            XCTAssertTrue(app.buttons["range-\(r)"].isSelected, r)
+            XCTAssertTrue(timeline.waitForExistence(timeout: 3))
+            XCTAssertTrue(timeline.label.contains("\(r) view"), timeline.label)
+        }
+
+        app.buttons["yearToggle"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["chart-years"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["legend-2026"].exists)
+        XCTAssertFalse(app.buttons["range-6M"].isSelected, "range chips step back in year mode")
+
+        app.buttons["range-3M"].tap()
+        XCTAssertTrue(timeline.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["yearToggle"].isSelected)
+    }
 }
