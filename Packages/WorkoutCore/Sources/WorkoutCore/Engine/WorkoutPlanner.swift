@@ -238,13 +238,17 @@ public struct RulesWorkoutPlanner: WorkoutPlanner {
         }
 
         var lift = ctx.rotation.lift(for: date)
-        ctx.reason(.strength, "rotation.week", "It's your \(lift.slot.displayName) day in the two-week rotation, so it's \(lift.displayName).")
+        if ctx.rotation.isClassic {
+            ctx.reason(.strength, "rotation.week", "It's your \(lift.slot.displayName) day in the two-week rotation, so it's \(lift.displayName).")
+        } else {
+            ctx.reason(.strength, "rotation.week", "Next in your rotation (\(ctx.rotation.lifts.map(\.displayName).joined(separator: " → "))): \(lift.displayName).")
+        }
 
         // Never repeat the same main lift within 7 days.
         let recentLifts = Set(ctx.history.filter { $0.date >= date.adding(days: -6) && $0.status == .done }.compactMap(\.mainLift))
         if recentLifts.contains(lift) {
-            let thisWeek = week == .a ? LiftRotation.weekA : LiftRotation.weekB
-            let other = week == .a ? LiftRotation.weekB : LiftRotation.weekA
+            let thisWeek = ctx.rotation.isClassic ? (week == .a ? LiftRotation.weekA : LiftRotation.weekB) : ctx.rotation.lifts
+            let other = ctx.rotation.isClassic ? (week == .a ? LiftRotation.weekB : LiftRotation.weekA) : []
             if let alt = (thisWeek + other).first(where: { !recentLifts.contains($0) && $0.slot == lift.slot })
                 ?? (thisWeek + other).first(where: { !recentLifts.contains($0) }) {
                 ctx.reason(.strength, "rotation.no_repeat", "You did \(lift.displayName) in the last 7 days, so today is \(alt.displayName) instead.")

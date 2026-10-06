@@ -163,12 +163,16 @@ public struct PlannerSettings: Codable, Hashable, Sendable {
     public var deloadWeeks: [LocalDate]
     /// Planned breaks (vacations): scheduled days inside are excused.
     public var breaks: [TrainingBreak]
+    /// Main lifts in rotation order.
+    public var lifts: [Lift]
+    /// Finished (or skipped) onboarding. Older saved settings count as onboarded.
+    public var onboarded: Bool
 
     public init(displayName: String = "", schedule: [Weekday] = [.monday, .wednesday, .friday],
                 equipment: EquipmentInventory = .homeGym, limits: TrainingLimits = TrainingLimits(),
                 targetMinutes: Int = 50, rotationAnchor: LocalDate = LocalDate(2026, 9, 28),
                 testWeekStart: LocalDate = LocalDate(2026, 10, 12), deloadWeeks: [LocalDate] = [],
-                breaks: [TrainingBreak] = []) {
+                breaks: [TrainingBreak] = [], lifts: [Lift] = Lift.allCases, onboarded: Bool = false) {
         self.displayName = displayName
         self.schedule = schedule
         self.equipment = equipment
@@ -178,10 +182,12 @@ public struct PlannerSettings: Codable, Hashable, Sendable {
         self.testWeekStart = testWeekStart
         self.deloadWeeks = deloadWeeks
         self.breaks = breaks
+        self.lifts = lifts
+        self.onboarded = onboarded
     }
 
     enum CodingKeys: String, CodingKey {
-        case displayName, schedule, equipment, limits, targetMinutes, rotationAnchor, testWeekStart, deloadWeeks, breaks
+        case displayName, schedule, equipment, limits, targetMinutes, rotationAnchor, testWeekStart, deloadWeeks, breaks, lifts, onboarded
     }
 
     /// Tolerant: settings saved by older versions (no `breaks`, ...) still load.
@@ -197,6 +203,8 @@ public struct PlannerSettings: Codable, Hashable, Sendable {
         testWeekStart = try c.decodeIfPresent(LocalDate.self, forKey: .testWeekStart) ?? d.testWeekStart
         deloadWeeks = try c.decodeIfPresent([LocalDate].self, forKey: .deloadWeeks) ?? d.deloadWeeks
         breaks = try c.decodeIfPresent([TrainingBreak].self, forKey: .breaks) ?? []
+        lifts = try c.decodeIfPresent([Lift].self, forKey: .lifts) ?? Lift.allCases
+        onboarded = try c.decodeIfPresent(Bool.self, forKey: .onboarded) ?? true
     }
 
     public static let `default` = PlannerSettings()
@@ -225,7 +233,7 @@ public struct PlannerSettings: Codable, Hashable, Sendable {
         ProgramCalendar(testWeekStart: testWeekStart, deloadWeeks: Set(deloadWeeks.map(\.startOfWeek)))
     }
 
-    public var rotation: LiftRotation { LiftRotation(anchor: rotationAnchor, schedule: sortedSchedule) }
+    public var rotation: LiftRotation { LiftRotation(anchor: rotationAnchor, schedule: sortedSchedule, lifts: lifts) }
 
     public func sanitized() -> PlannerSettings {
         var c = self
@@ -237,6 +245,7 @@ public struct PlannerSettings: Codable, Hashable, Sendable {
         c.testWeekStart = testWeekStart.startOfWeek
         c.deloadWeeks = Array(Set(deloadWeeks.map(\.startOfWeek))).sorted().suffix(52)
         c.breaks = Array(breaks.map { $0.sanitized() }.sorted { $0.from < $1.from }.prefix(50))
+        c.lifts = LiftRotation.cleaned(lifts)
         return c
     }
 }

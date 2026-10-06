@@ -127,7 +127,9 @@ public struct ProgramCalendar: Hashable, Sendable {
     }
 }
 
-/// Two-week lift rotation (Mon squat, Wed hip/pull, Fri overhead).
+/// Lift rotation. The classic setup (3 days, the default six lifts) is the
+/// two-week A/B rotation: squat / hip-pull / overhead. Any other schedule or
+/// lift list cycles through the chosen lifts in order, one per training day.
 public struct LiftRotation: Hashable, Sendable {
     public enum Week: String, Codable, Sendable { case a = "A", b = "B" }
 
@@ -138,11 +140,31 @@ public struct LiftRotation: Hashable, Sendable {
 
     public let anchor: LocalDate
     public let schedule: [Weekday]
+    /// Main lifts in rotation order (at least two).
+    public let lifts: [Lift]
 
-    public init(anchor: LocalDate, schedule: [Weekday]) {
+    public init(anchor: LocalDate, schedule: [Weekday], lifts: [Lift] = Lift.allCases) {
         self.anchor = anchor.startOfWeek
         let s = Array(Set(schedule)).sorted()
         self.schedule = s.isEmpty ? [.monday, .wednesday, .friday] : s
+        self.lifts = LiftRotation.cleaned(lifts)
+    }
+
+    /// Unique, in order; falls back to the six when fewer than two remain.
+    public static func cleaned(_ lifts: [Lift]) -> [Lift] {
+        var seen: Set<Lift> = []
+        let unique = lifts.filter { seen.insert($0).inserted }
+        return unique.count >= 2 ? unique : Lift.allCases
+    }
+
+    /// 3 days a week with the default six lifts: the A/B weeks.
+    public var isClassic: Bool { schedule.count == 3 && lifts == Lift.allCases }
+
+    /// Training days from the anchor up to (not including) `date`; negative before it.
+    func sessionIndex(for date: LocalDate) -> Int {
+        let weeks = anchor.days(until: date.startOfWeek) / 7
+        let floorWeeks = anchor.days(until: date.startOfWeek) < 0 && anchor.days(until: date.startOfWeek) % 7 != 0 ? weeks - 1 : weeks
+        return floorWeeks * schedule.count + schedule.filter { $0 < date.weekday }.count
     }
 
     public func week(for date: LocalDate) -> Week {
@@ -160,12 +182,22 @@ public struct LiftRotation: Hashable, Sendable {
     }
 
     public func lift(for date: LocalDate) -> Lift {
+        guard isClassic else {
+            let n = lifts.count
+            return lifts[((sessionIndex(for: date) % n) + n) % n]
+        }
         let lifts = week(for: date) == .a ? LiftRotation.weekA : LiftRotation.weekB
         return lifts[slotIndex(for: date)]
     }
 
+    /// Two lifts per test day: the classic pairs, or the chosen lifts two by two.
     public func testLifts(for date: LocalDate) -> (Lift, Lift) {
-        LiftRotation.testWeekPairs[slotIndex(for: date)]
+        guard isClassic else {
+            let k = schedule.filter { $0 < date.weekday }.count
+            let n = lifts.count
+            return (lifts[(2 * k) % n], lifts[(2 * k + 1) % n])
+        }
+        return LiftRotation.testWeekPairs[slotIndex(for: date)]
     }
 
     /// Next scheduled date on or after `date`.
