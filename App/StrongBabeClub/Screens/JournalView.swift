@@ -69,11 +69,11 @@ struct JournalEntry: View {
                 if w.status == .excused {
                     Text("sick day · excused").bodyText(16, .heavy, color: Palette.muted)
                 } else {
-                    (Text(w.mainLift?.displayName ?? "Workout") + Text(top.map { " · top \(formatPounds($0))" } ?? "").foregroundColor(Palette.muted))
+                    (Text(w.mainLift?.displayName ?? w.strengthSection?.items.first?.movementName ?? "Workout") + Text(top.map { " · top \(formatPounds($0))" } ?? "").foregroundColor(Palette.muted))
                         .bodyText(16, .heavy)
                     if let m = w.metabolicSection {
                         let scores = m.roundLogs.map { r in r.timeSec.map(formatClock) ?? r.rounds.map { "\($0)+\(r.reps ?? 0)" } ?? "\(r.reps ?? 0)" }
-                        Text(([m.name ?? m.format.nameStructure] + (scores.isEmpty ? [] : [scores.joined(separator: ", ")])).joined(separator: " · "))
+                        Text(([m.name ?? m.format.displayName] + (scores.isEmpty ? [] : [scores.joined(separator: ", ")])).joined(separator: " · "))
                             .bodyText(13, .semibold, color: Palette.muted).lineLimit(2)
                     }
                     if let note = w.feedback?.notes, !note.isEmpty {

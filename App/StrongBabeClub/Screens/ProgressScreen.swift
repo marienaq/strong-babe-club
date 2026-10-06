@@ -9,7 +9,8 @@ struct ProgressScreen: View {
     @Environment(AppStore.self) private var store
     /// Remembered chart tab (a UI preference; the only UserDefaults use, see PrivacyInfo.xcprivacy).
     @AppStorage("progress.mode") private var modeRaw: String = Mode.maxWeight.rawValue
-    @State private var selectedLifts: Set<Lift> = [.frontSquat, .deadlift]
+    /// Single-select: one lift on the chart at a time.
+    @AppStorage("progress.lift") private var liftRaw: String = ""
     @State private var showNewGoal = false
 
     enum Mode: String, CaseIterable { case maxWeight = "max weight", volume, benchmarks }
@@ -54,14 +55,26 @@ struct ProgressScreen: View {
         .sheet(isPresented: $showNewGoal) { NewGoalSheet() }
     }
 
+    /// The chosen lift, else the most recently logged one, else Front Squat.
+    var selectedLift: Lift {
+        if let l = Lift(rawValue: liftRaw) { return l }
+        let latest = Lift.allCases.compactMap { lift in
+            ProgressSeries.lift(lift, workouts: store.visibleWorkouts).last.map { (lift, $0.date) }
+        }.max { $0.1 < $1.1 }
+        return latest?.0 ?? .frontSquat
+    }
+
     var liftChart: some View {
-        let since = store.today.adding(days: -200)
-        let series = Lift.allCases.filter(selectedLifts.contains).map { lift in
-            (lift, ProgressSeries.lift(lift, workouts: store.visibleWorkouts, since: since))
+        // Full history: every session's top set (imported and logged in the app).
+        let series = [selectedLift].map { lift in
+            (lift, ProgressSeries.lift(lift, workouts: store.visibleWorkouts))
         }
+        let span = series.first.flatMap { s in s.1.first.map { $0.date.days(until: s.1.last!.date) } } ?? 0
+        let monthStep = span > 540 ? 6 : span > 270 ? 3 : span > 120 ? 2 : 1
         return Group {
             if series.allSatisfy({ $0.1.isEmpty }) {
-                Text("Log a few strength days and your lines start drawing here.").hand(19, color: Palette.muted).frame(height: 184)
+                Text("No \(selectedLift.displayName.lowercased()) sets logged yet. Check off your sets and the line starts drawing here.")
+                    .hand(19, color: Palette.muted).frame(maxWidth: .infinity, minHeight: 184)
             } else {
                 Chart {
                     ForEach(series, id: \.0) { lift, points in
@@ -69,16 +82,22 @@ struct ProgressScreen: View {
                             let date = Calendar(identifier: .gregorian).date(from: DateComponents(year: p.date.year, month: p.date.month, day: p.date.day)) ?? .now
                             LineMark(x: .value("Date", date), y: .value(mode == .volume ? "Volume (lb)" : "Top set (lb)", mode == .volume ? p.volume : p.topWeight))
                                 .foregroundStyle(by: .value("Lift", lift.displayName))
-                                .lineStyle(StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round))
+                                .lineStyle(StrokeStyle(lineWidth: points.count > 30 ? 2.5 : 3.5, lineCap: .round, lineJoin: .round))
                             PointMark(x: .value("Date", date), y: .value("lb", mode == .volume ? p.volume : p.topWeight))
                                 .foregroundStyle(by: .value("Lift", lift.displayName))
+                                .symbolSize(points.count > 30 ? 18 : 40)
                         }
                     }
                 }
                 .chartForegroundStyleScale(domain: series.map { $0.0.displayName }, range: series.map { Self.liftColors[$0.0] ?? Palette.ink })
                 .chartLegend(.hidden)
                 .chartYAxis { AxisMarks(position: .leading) { _ in AxisGridLine(stroke: StrokeStyle(lineWidth: 1.5, dash: [4, 5])).foregroundStyle(Palette.dot); AxisValueLabel().font(Typeface.hand(15)) } }
-                .chartXAxis { AxisMarks(values: .stride(by: .month, count: 2)) { _ in AxisValueLabel(format: .dateTime.month(.abbreviated)).font(Typeface.hand(15)) } }
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: .month, count: monthStep)) { _ in
+                        AxisValueLabel(format: span > 270 ? .dateTime.month(.abbreviated).year(.twoDigits) : .dateTime.month(.abbreviated))
+                            .font(Typeface.hand(15))
+                    }
+                }
                 .frame(height: 184)
                 .accessibilityLabel(mode == .volume ? "Volume per session" : "Top set per session")
             }
@@ -88,9 +107,9 @@ struct ProgressScreen: View {
     var liftChips: some View {
         FlowLayout(spacing: 8) {
             ForEach(Lift.allCases, id: \.self) { lift in
-                let on = selectedLifts.contains(lift)
+                let on = selectedLift == lift
                 Button {
-                    if on { selectedLifts.remove(lift) } else { selectedLifts.insert(lift) }
+                    liftRaw = lift.rawValue
                 } label: {
                     Text(lift.displayName).bodyText(13, on ? .heavy : .bold, color: on ? Palette.ink : Palette.muted)
                         .padding(.horizontal, 12).frame(height: 32)
@@ -99,6 +118,7 @@ struct ProgressScreen: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(on ? .isSelected : [])
+                .accessibilityIdentifier("chip-\(lift.rawValue)")
             }
         }
     }
