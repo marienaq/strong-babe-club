@@ -218,6 +218,16 @@ public struct WorkoutSection: Codable, Hashable, Sendable, Identifiable {
         self.roundLogs = roundLogs
     }
 
+    /// Strength: the main lift(s); `secondaryItems` are the light accessories.
+    public var mainItems: [SectionItem] {
+        let mains = items.filter { !$0.plannedSets.isEmpty || Lift(movementName: $0.movementName) != nil }
+        return mains.isEmpty ? items : mains
+    }
+    public var secondaryItems: [SectionItem] {
+        let mainIDs = Set(mainItems.map(\.id))
+        return items.filter { !mainIDs.contains($0.id) }
+    }
+
     /// Reps in one full round (used to turn rounds+reps into total reps).
     public var repsPerRound: Int { items.compactMap(\.reps).reduce(0, +) }
 
@@ -249,9 +259,10 @@ public struct WorkoutSection: Codable, Hashable, Sendable, Identifiable {
             let r = "\(rounds ?? 3) rounds"
             return compact ? r : r + (items.first.map { " · " + $0.movementName.lowercased() + " +\(max(0, items.count - 1))" } ?? "")
         case .strength:
-            let names = items.map(\.movementName).joined(separator: " + ")
-            if items.count > 1 { return names }
-            if let sets = items.first?.plannedSets, let first = sets.first {
+            let mains = mainItems
+            let names = mains.map(\.movementName).joined(separator: " + ")
+            if mains.count > 1 { return names }
+            if let sets = mains.first?.plannedSets, let first = sets.first {
                 let allSame = sets.allSatisfy { $0.reps == first.reps }
                 let scheme = allSame ? "\(sets.count) × \(first.reps)" : "\(sets.count) sets"
                 return compact ? names : "\(scheme) \(names)"
@@ -386,7 +397,7 @@ public struct PlannedWorkout: Codable, Hashable, Sendable, Identifiable {
 }
 
 public struct LiftProgram: Codable, Hashable, Sendable {
-    public enum Source: String, Codable, Sendable { case history, test, manual, progression }
+    public enum Source: String, Codable, Sendable { case history, test, manual, progression, calibrating }
 
     public var lift: Lift
     public var trainingMax: Double

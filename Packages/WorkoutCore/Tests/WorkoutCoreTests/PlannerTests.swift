@@ -55,7 +55,7 @@ final class PlannerTests: XCTestCase {
     }
 
     func testStrengthFollowsRotationAndBlock() throws {
-        let w = try plan(blockDay, tms: [.frontSquat: 125])
+        let w = try plan(LocalDate(2026, 10, 19), tms: [.frontSquat: 125])
         let s = try XCTUnwrap(w.strengthSection)
         XCTAssertEqual(s.lift, .frontSquat)
         XCTAssertEqual(s.intervalSec, 120)
@@ -66,22 +66,85 @@ final class PlannerTests: XCTestCase {
         XCTAssertEqual(s.trainingMax, 125)
     }
 
-    func testTestWeekHasTwoLiftsEveryThreeMinutes() throws {
-        let w = try plan(LocalDate(2026, 10, 14))
+    /// Settings with a two-week test period starting Oct 12 (new-user "test").
+    var testingSettings: PlannerSettings {
+        var s = PlannerSettings.default
+        s.initialTestWeeks = 2
+        return s
+    }
+
+    func testTestWeeksHaveOneHeavyTriplePlusAccessory() throws {
+        let w = try plan(LocalDate(2026, 10, 14), settings: testingSettings)
         let s = try XCTUnwrap(w.strengthSection)
-        XCTAssertEqual(s.items.map(\.movementName), ["Deadlift", "Push Jerk"])
-        XCTAssertEqual(s.intervalSec, 180)
-        XCTAssertTrue(w.reasons(for: .strength).contains { $0.rule == "test.week" })
+        XCTAssertEqual(s.mainItems.map(\.movementName), ["Deadlift"])
+        XCTAssertEqual(s.mainItems[0].plannedSets.map(\.reps), [3, 3, 3, 3, 3, 3])
+        XCTAssertEqual(s.secondaryItems.count, 1)
+        XCTAssertEqual(s.intervalSec, 120)
+        XCTAssertTrue(s.instructions.contains("heavy 3"))
+        XCTAssertTrue(w.reasons(for: .strength).contains { $0.rule == "test.week" && $0.text.contains("never a true max") })
         // Short metabolic piece in test week.
         XCTAssertLessThanOrEqual(WorkoutDuration.estimate(w.metabolicSection!), 8)
     }
 
     func testTestWeekRampStartsAtHalfOfLastTopSet() throws {
         let history = [TestData.strengthDay(LocalDate(2026, 10, 2), .deadlift, weights: [85, 110, 135, 160, 185])]
-        let w = try plan(LocalDate(2026, 10, 14), history: history)
+        let w = try plan(LocalDate(2026, 10, 14), settings: testingSettings, history: history)
         let dl = try XCTUnwrap(w.strengthSection?.items.first)
         XCTAssertEqual(dl.plannedSets.first?.weight, 90) // 50% of 185 = 92.5 -> 90 (ties down)
         XCTAssertTrue(w.reasons(for: .strength).contains { $0.rule == "test.ramp_from_history" })
+    }
+
+    /// The owner's rule: one main barbell lift per session, ever.
+    func testNeverTwoMainLifts() throws {
+        for settings in [PlannerSettings.default, testingSettings] {
+            var history: [PlannedWorkout] = []
+            var d = LocalDate(2026, 10, 5)
+            while d < LocalDate(2027, 4, 30) {
+                if settings.rotation.isScheduled(d) {
+                    for salt in [UInt64(0), 1] {
+                        var salts = SectionSalts()
+                        salts.strength = salt
+                        let w = try planner.makePlan(PlanRequest(date: d, settings: settings, history: history, salts: salts, now: TestData.now))
+                        let s = try XCTUnwrap(w.strengthSection)
+                        let mains = s.items.filter { Lift(movementName: $0.movementName) != nil }
+                        XCTAssertEqual(mains.count, 1, "\(d): \(s.items.map(\.movementName))")
+                        XCTAssertLessThanOrEqual(s.items.count, 2)
+                        for sec in s.secondaryItems {
+                            XCTAssertTrue(sec.plannedSets.isEmpty, "accessories are never ramped or tested")
+                            XCTAssertNotNil(sec.repsScheme)
+                        }
+                        if salt == 0 { var done = w; done.status = .done; history.append(done) }
+                    }
+                }
+                d = d.adding(days: 1)
+            }
+        }
+    }
+
+    func testSecondaryMatchesTheLift() throws {
+        let expected: [Lift: Set<String>] = [
+            .backSquat: ["db-row", "australian-pull-up", "push-up"], .frontSquat: ["db-row", "australian-pull-up", "push-up"],
+            .deadlift: ["db-bench-press", "push-up", "db-strict-press"],
+            .pushPress: ["goblet-squat", "db-row", "australian-pull-up"], .pushJerk: ["goblet-squat", "db-row", "australian-pull-up"],
+            .hangPowerClean: ["db-split-squat", "bench-step-up", "box-step-up", "db-row"],
+        ]
+        var d = LocalDate(2026, 10, 12)
+        for _ in 0..<42 {
+            if PlannerSettings.default.rotation.isScheduled(d) {
+                let w = try plan(d)
+                let lift = try XCTUnwrap(w.mainLift)
+                let sec = try XCTUnwrap(w.strengthSection?.secondaryItems.first)
+                XCTAssertTrue(expected[lift]!.contains(sec.movementID), "\(lift): \(sec.movementID)")
+            }
+            d = d.adding(days: 1)
+        }
+        // Limits and equipment still apply: no bench, no low bar, no dumbbells.
+        var s = PlannerSettings.default
+        s.equipment.hasBench = false
+        s.equipment.hasLowBar = false
+        s.equipment.dumbbells = []
+        let sq = try plan(LocalDate(2026, 10, 12), settings: s)
+        XCTAssertEqual(sq.strengthSection?.secondaryItems.first?.movementID, "push-up")
     }
 
     func testAllStrengthWeightsAreLoadable() throws {

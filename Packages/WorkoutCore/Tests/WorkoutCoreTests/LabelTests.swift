@@ -15,12 +15,12 @@ final class LabelTests: XCTestCase {
 
     func testBlockContextLabels() {
         let cal = ProgramCalendar()
-        XCTAssertEqual(cal.contextLabel(on: LocalDate(2026, 10, 5)), "test week starts Oct 12")
-        XCTAssertEqual(cal.contextLabel(on: LocalDate(2026, 10, 14)), "test week")
-        XCTAssertEqual(cal.contextLabel(on: LocalDate(2026, 11, 2)), "block 1 · week 3 · volume")
-        XCTAssertEqual(cal.contextLabel(on: LocalDate(2027, 1, 13)), "block 1 · test week")
+        XCTAssertEqual(cal.contextLabel(on: LocalDate(2026, 10, 5)), "block 1 starts Oct 12")
+        XCTAssertEqual(cal.contextLabel(on: LocalDate(2026, 10, 14)), "block 1 · week 1 · volume")
+        XCTAssertEqual(cal.contextLabel(on: LocalDate(2026, 11, 2)), "block 1 · week 4 · volume")
+        XCTAssertEqual(cal.contextLabel(on: LocalDate(2027, 1, 13)), "block 1 · test week 2 of 2")
         let holiday = ProgramCalendar(deloadWeeks: [LocalDate(2026, 12, 21)])
-        XCTAssertEqual(holiday.contextLabel(on: LocalDate(2026, 12, 23)), "block 1 · week 10 · deload (swapped)")
+        XCTAssertEqual(holiday.contextLabel(on: LocalDate(2026, 12, 23)), "block 1 · week 11 · deload (swapped)")
     }
 
     func testStrengthReasonsDontMentionWeekAB() throws {
@@ -33,8 +33,7 @@ final class LabelTests: XCTestCase {
         let s = try XCTUnwrap(w.strengthSection)
         XCTAssertEqual(s.todayDetail(compact: false), "6 × 5 Front Squat")
         XCTAssertEqual(s.todayDetail(compact: true), "Front Squat")
-        let test = try RulesWorkoutPlanner().makePlan(PlanRequest(date: LocalDate(2026, 10, 12), now: TestData.now))
-        XCTAssertEqual(test.strengthSection?.todayDetail(compact: false), "Back Squat + Push Press")
+        XCTAssertEqual(s.secondaryItems.count, 1, "the accessory isn't in the Today detail")
         let m = try XCTUnwrap(w.metabolicSection)
         XCTAssertTrue(m.todayDetail(compact: false).hasPrefix(m.format.displayName), m.todayDetail(compact: false))
         XCTAssertTrue(w.section(.cooldown)!.todayDetail(compact: false).hasSuffix("+ stretch"))

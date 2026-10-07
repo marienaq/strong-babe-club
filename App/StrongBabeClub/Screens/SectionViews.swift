@@ -76,7 +76,8 @@ struct StrengthSectionView: View {
         VStack(alignment: .leading, spacing: 12) {
             liftCard
             timerRow
-            ForEach(section.items) { item in setTable(item) }
+            ForEach(section.mainItems) { item in setTable(item) }
+            ForEach(section.secondaryItems) { item in SecondaryRow(item: item) }
             HistoryPanel(rows: historyRows, tint: Palette.tangerineDeep)
             NotesField(workoutID: workout.id, section: section, prompt: "knee felt good today…")
         }
@@ -103,7 +104,7 @@ struct StrengthSectionView: View {
             guard let lift = Lift(movementName: item.movementName) else { return nil }
             return RecentHistory.liftSessions(lift, before: workout.date, in: store.visibleWorkouts).map { s in
                 HistoryPanel.Row(id: "\(lift.rawValue)-\(s.date.iso)", date: s.date.shortDisplay,
-                                 title: section.items.count > 1 ? lift.displayName : nil,
+                                 title: section.mainItems.count > 1 ? lift.displayName : nil,
                                  detail: s.sets.map { "\(store.fmt($0.weight)) × \($0.reps)" }.joined(separator: " · "))
             }
         }.flatMap { $0 }
@@ -114,7 +115,7 @@ struct StrengthSectionView: View {
             HStack(spacing: 8) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("strength").hand(20, color: Palette.tangerineDeep)
-                    Text(section.items.map(\.movementName).joined(separator: " + ")).bodyText(26, .heavy)
+                    Text(section.mainItems.map(\.movementName).joined(separator: " + ")).bodyText(26, .heavy)
                         .accessibilityAddTraits(.isHeader)
                     Text(section.instructions).bodyText(14, .semibold).lineSpacing(2)
                 }
@@ -156,7 +157,7 @@ struct StrengthSectionView: View {
         let best = lift.flatMap { store.bestTop(of: $0, before: workout.date) } ?? 0
         return PaperCard(ruled: 44, padding: EdgeInsets(top: 10, leading: 12, bottom: 6, trailing: 12)) {
             VStack(alignment: .leading, spacing: 0) {
-                if section.items.count > 1 { Text("\(item.letter): \(item.movementName)").hand(20, color: Palette.tangerineDeep) }
+                if section.mainItems.count > 1 { Text("\(item.letter): \(item.movementName)").hand(20, color: Palette.tangerineDeep) }
                 // Plain Grid (not lazy): every row stays in the hierarchy while the keyboard is up.
                 Grid(alignment: .leading, horizontalSpacing: 6, verticalSpacing: 0) {
                     GridRow {
@@ -252,6 +253,36 @@ struct StrengthSectionView: View {
         Haptics.play(.tap)
         // Start the countdown to the next set if the clock isn't running yet.
         if let timer, !timer.isRunning, !timer.snapshot.isFinished { timer.start() }
+    }
+}
+
+/// The light accessory after the main lift: "+ 3 × 10 bench DB rows · 20 lb".
+@MainActor
+struct SecondaryRow: View {
+    var item: SectionItem
+    @State private var done = false
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text("+").hand(24, color: Palette.tangerine)
+            VStack(alignment: .leading, spacing: 0) {
+                Text("\(item.repsScheme ?? "3 × \(item.reps ?? 10)") \(item.movementName.lowercased())")
+                    .bodyText(15, .bold, color: Palette.note)
+                Text(["easy, between sets", item.weightLabel].compactMap { $0 }.joined(separator: " · "))
+                    .hand(17, .semibold, color: Palette.muted)
+            }
+            Spacer(minLength: 0)
+            Button { done.toggle(); Haptics.play(.tap) } label: {
+                Image(systemName: done ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 24)).foregroundStyle(done ? Palette.tangerine : Palette.dashed)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(done ? "Accessory done" : "Mark accessory done")
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 8).strokeBorder(Palette.dashed, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])))
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("secondaryAccessory")
     }
 }
 

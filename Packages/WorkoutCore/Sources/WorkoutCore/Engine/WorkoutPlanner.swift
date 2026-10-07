@@ -137,7 +137,7 @@ public struct RulesWorkoutPlanner: WorkoutPlanner {
             self.trainingMaxes = TrainingMax.resolve(programs: request.trainingMaxes, history: history,
                                                     barWeight: settings.equipment.barWeight,
                                                     extra: settings.equipment.unit == .kg ? 10 : 20)
-            let lift = position.isTestWeek ? rotation.testLifts(for: request.date).0 : rotation.lift(for: request.date)
+            let lift = rotation.lift(for: request.date)
             self.coachNote = CoachNoteSelector.select(history: history, today: request.date, todaysLift: lift,
                                                       schedule: settings.sortedSchedule, breaks: settings.breaks)
         }
@@ -205,37 +205,13 @@ public struct RulesWorkoutPlanner: WorkoutPlanner {
 
     // MARK: Strength
 
+    /// One main barbell lift per session (never two), optionally followed
+    /// by a lighter secondary accessory in a complementary pattern.
     func buildStrength(_ ctx: inout Context) -> WorkoutSection {
         var rng = ctx.rng(.strength)
         let pos = ctx.position
         let date = ctx.request.date
         let week = ctx.rotation.week(for: date)
-
-        if pos.isTestWeek {
-            let (a, b) = ctx.rotation.testLifts(for: date)
-            ctx.lifts = [a, b]
-            ctx.reason(.strength, "test.week", "Test week: work up to heavy sets to set real training maxes. \"Heavy\" means 1-2 reps left in the tank.")
-            var items: [SectionItem] = []
-            var tmUsed: Double?
-            for (i, lift) in [a, b].enumerated() {
-                let tm = ctx.trainingMaxes[lift]!
-                let lastTop = LiftHistory.sessions(of: lift, in: ctx.history).last?.topWeight
-                let plan = StrengthPlanner.plan(lift: lift, position: pos, trainingMax: tm, calculator: ctx.plates,
-                                                input: StrengthAdjustmentInput(), rampStart: (lastTop ?? tm) * 0.5)
-                if let lastTop {
-                    ctx.reason(.strength, "test.ramp_from_history",
-                               "\(lift.displayName) warm-up sets start at 50% of your last heaviest set (\(formatPounds(lastTop)) \(WeightUnit.current.symbol)).")
-                }
-                if i == 0 { tmUsed = plan.trainingMax }
-                items.append(SectionItem(id: UUID.seeded(&rng), letter: i == 0 ? "A" : "B", movementID: lift.movementID,
-                                         movementName: lift.displayName, reps: plan.prescription.setReps.first,
-                                         prescribedWeight: plan.sets.last?.weight, plannedSets: plan.sets))
-            }
-            let rxA = StrengthProgram.prescription(for: a, position: pos)
-            return WorkoutSection(id: UUID.seeded(&rng), kind: .strength, format: .everyNMin,
-                                  instructions: "Every 3 min: A then B, \(rxA.setReps.count) sets\nA: work up to a heavy 3 · B: heavy single, clean technique only",
-                                  rounds: rxA.setReps.count, intervalSec: StrengthProgram.twoLiftInterval, lift: a, trainingMax: tmUsed, items: items)
-        }
 
         var lift = ctx.rotation.lift(for: date)
         if ctx.rotation.isClassic {
@@ -257,38 +233,78 @@ public struct RulesWorkoutPlanner: WorkoutPlanner {
         }
         ctx.lifts = [lift]
 
-        if pos.phase == .preProgram {
-            ctx.reason(.strength, "block.pre_program",
-                       "The program starts with test week on \(ctx.calendar.testWeekStart.shortDisplay). Until then: volume-style sets from your history.")
+        let tm = ctx.trainingMaxes[lift]!
+        let plan: StrengthPlan
+        if pos.isTestWeek {
+            ctx.reason(.strength, "test.week",
+                       "Test weeks: work up to a heavy 3 with 1-2 reps left in the tank (never a true max). Your new training max is estimated from it.")
+            let lastTop = LiftHistory.sessions(of: lift, in: ctx.history).last?.topWeight
+            plan = StrengthPlanner.plan(lift: lift, position: pos, trainingMax: tm, calculator: ctx.plates,
+                                        input: StrengthAdjustmentInput(), rampStart: (lastTop ?? tm) * 0.5)
+            if let lastTop {
+                ctx.reason(.strength, "test.ramp_from_history",
+                           "Warm-up sets start at 50% of your last heaviest set (\(formatPounds(lastTop)) \(WeightUnit.current.symbol)).")
+            }
         } else {
-            let label = pos.isDeloadOverride ? "a deload week (swapped in Settings)" : "the \(pos.phase.displayName) phase"
-            ctx.reason(.strength, "block.phase", "Block \(pos.block), week \(pos.week): \(label).")
+            if pos.phase == .preProgram {
+                ctx.reason(.strength, "block.pre_program",
+                           "Block 1 starts \(ctx.calendar.block1Start.shortDisplay). Until then: volume-style sets from your recent history.")
+            } else {
+                let label = pos.isDeloadOverride ? "a deload week (swapped in Settings)" : "the \(pos.phase.displayName) phase"
+                ctx.reason(.strength, "block.phase", "Block \(pos.block), week \(pos.week): \(label).")
+            }
+            let joint = lift.jointStress.intersection(ctx.settings.limits.protectedJoints).sorted { $0.rawValue < $1.rawValue }.first
+            let input = StrengthAdjustmentInput(lastSessions: Array(LiftHistory.sessions(of: lift, in: ctx.history).suffix(2)),
+                                                capAtLowEnd: ctx.lighter,
+                                                push: ctx.coachNote.kind == .push && ctx.coachNote.lift == lift,
+                                                jointLimit: joint)
+            plan = StrengthPlanner.plan(lift: lift, position: pos, trainingMax: tm, calculator: ctx.plates, input: input)
         }
-
-        let joint = lift.jointStress.intersection(ctx.settings.limits.protectedJoints).sorted { $0.rawValue < $1.rawValue }.first
-        let input = StrengthAdjustmentInput(lastSessions: Array(LiftHistory.sessions(of: lift, in: ctx.history).suffix(2)),
-                                            capAtLowEnd: ctx.lighter,
-                                            push: ctx.coachNote.kind == .push && ctx.coachNote.lift == lift,
-                                            jointLimit: joint)
-        let plan = StrengthPlanner.plan(lift: lift, position: pos, trainingMax: ctx.trainingMaxes[lift]!,
-                                        calculator: ctx.plates, input: input)
         for n in plan.notes { if let text = n.text { ctx.reason(.strength, n.rule, text) } }
 
         // Shuffle only changes the format; lift and weights come from the block.
         let variant = ctx.request.salts.strength % 2
         var instructions = plan.prescription.instructions
         var format = SectionFormat.everyNMin
-        if variant == 1 {
+        if variant == 1 && !pos.isTestWeek {
             format = .setsGoingUp
             let reps = Set(plan.prescription.setReps).count == 1 ? "\(plan.prescription.setReps[0])" : plan.prescription.setReps.map(String.init).joined(separator: "-")
             instructions = "\(plan.sets.count) sets × \(reps) going up\nRest about 2 min between sets"
             ctx.reason(.strength, "shuffle.format", "Shuffled: same lift and weights (set by your block), as straight sets instead of every 2 min.")
         }
-        let item = SectionItem(id: UUID.seeded(&rng), letter: "A", movementID: lift.movementID, movementName: lift.displayName,
-                               reps: plan.prescription.setReps.first, prescribedWeight: plan.sets.last?.weight, plannedSets: plan.sets)
+        var items = [SectionItem(id: UUID.seeded(&rng), letter: "A", movementID: lift.movementID, movementName: lift.displayName,
+                                 reps: plan.prescription.setReps.first, prescribedWeight: plan.sets.last?.weight, plannedSets: plan.sets)]
+        if let secondary = secondaryAccessory(for: lift, ctx: ctx, rng: &rng) {
+            items.append(secondary.item)
+            instructions += "\n+ \(secondary.item.repsScheme ?? "3 × 10") \(secondary.item.movementName.lowercased()) between sets, easy (RPE 6-7)"
+            ctx.reason(.strength, "secondary.accessory",
+                       "\(secondary.item.movementName) keeps it balanced: \(secondary.why). Light and easy, never maxed.")
+        }
         return WorkoutSection(id: UUID.seeded(&rng), kind: .strength, format: format, instructions: instructions,
                               rounds: plan.sets.count, intervalSec: plan.prescription.intervalSec, lift: lift,
-                              trainingMax: plan.trainingMax, items: [item])
+                              trainingMax: plan.trainingMax, items: items)
+    }
+
+    /// Complementary light accessories per main lift (first allowed wins after a seeded shuffle).
+    static let secondaryOptions: [LiftSlot: (ids: [String], why: String)] = [
+        .squat: (["db-row", "australian-pull-up", "push-up"], "a pull or push to go with today's squat"),
+        .overhead: (["goblet-squat", "db-row", "australian-pull-up"], "legs and back to go with today's press"),
+    ]
+
+    func secondaryAccessory(for lift: Lift, ctx: Context, rng: inout SeededRandom) -> (item: SectionItem, why: String)? {
+        let options: (ids: [String], why: String)
+        switch lift {
+        case .deadlift: options = (["db-bench-press", "push-up", "db-strict-press"], "a push to go with today's pull from the floor")
+        case .hangPowerClean: options = (["db-split-squat", "bench-step-up", "box-step-up", "db-row"], "single-leg work to go with today's clean")
+        default: options = Self.secondaryOptions[lift.slot]!
+        }
+        let allowed = options.ids.compactMap { library[$0] }.compactMap { library.resolve($0, equipment: ctx.equipment, limits: ctx.settings.limits)?.movement }
+        guard !allowed.isEmpty else { return nil }
+        let pick = allowed.seededShuffled(using: &rng).first!
+        let reps = pick.id == "push-up" || pick.id == "australian-pull-up" ? 8 : pick.id == "db-split-squat" ? 8 : 10
+        var item = makeItem(pick, letter: "B", reps: reps, ctx: ctx, rng: &rng)
+        item.repsScheme = "3 × \(item.reps ?? reps)\(pick.id == "db-split-squat" ? " each leg" : "")"
+        return (item, options.why)
     }
 
     // MARK: Warm-up

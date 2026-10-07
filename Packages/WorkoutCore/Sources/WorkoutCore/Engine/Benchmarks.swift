@@ -26,7 +26,7 @@ public struct BenchmarkScheduler: Sendable {
         guard pos.block >= 1 else { return nil }
         let past = history.filter { $0.date < date }
         // At most one benchmark per calendar week (week 13 excepted).
-        if pos.week != 13 {
+        if !pos.isTestWeek {
             let weekStart = date.startOfWeek
             let ranThisWeek = past.contains { w in
                 w.date >= weekStart && w.status == .done && w.sections.contains { $0.benchmarkID != nil }

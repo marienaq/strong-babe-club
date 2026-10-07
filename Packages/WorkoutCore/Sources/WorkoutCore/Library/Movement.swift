@@ -193,6 +193,9 @@ extension MovementLibrary {
         add(Movement(id: "box-jump", name: "Box Jumps", pattern: .squat, muscles: [.quads, .glutes, .calves], equipment: [.box],
                      implement: .box, highImpact: true, jointFlags: [.knee], roles: [.metabolic], baseReps: 6,
                      noJumpSubstitute: "box-step-up", jointSubstitute: "box-step-up"))
+        add(Movement(id: "db-split-squat", name: "DB Split Squats", pattern: .lunge, muscles: [.quads, .glutes], equipment: [.dumbbell],
+                     implement: .dumbbell, jointFlags: [.knee], defaultWeight: 15, dumbbellPair: true, roles: [.metabolic], baseReps: 8,
+                     jointSubstitute: "db-glute-bridge"))
         add(Movement(id: "glute-bridge", name: "Glute Bridges", pattern: .hinge, muscles: [.glutes, .hamstrings],
                      roles: [.warmupPrimer, .metabolic], primes: [.squat, .hipPull], baseReps: 12))
         add(Movement(id: "db-glute-bridge", name: "DB Glute Bridges", pattern: .hinge, muscles: [.glutes, .hamstrings], equipment: [.dumbbell],
