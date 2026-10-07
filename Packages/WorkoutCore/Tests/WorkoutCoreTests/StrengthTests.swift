@@ -312,3 +312,51 @@ final class StrengthProgramTests: XCTestCase {
         XCTAssertTrue(StrengthProgram.prescription(for: .pushJerk, position: pos(13)).instructions.contains("heavy 3"))
     }
 }
+
+final class RampAndCalibrationTests: XCTestCase {
+    let plates = PlateCalculator()
+
+    func testRampsStrictlyIncreaseWhenPlatesAllow() {
+        for top in stride(from: 70.0, through: 230, by: 5) {
+            for start in [45.0, top * 0.5] {
+                let sets = StrengthProgram.ramp(setReps: Array(repeating: 3, count: 6), top: top, start: start, calculator: plates)
+                let distinct = plates.loadableTotals.filter { $0 >= sets[0].weight && $0 <= top }.count
+                if distinct >= 6 {
+                    for (a, b) in zip(sets, sets.dropFirst()) { XCTAssertGreaterThan(b.weight, a.weight, "top \(top) start \(start): \(sets.map(\.weight))") }
+                }
+                XCTAssertEqual(sets.last?.weight, top)
+            }
+        }
+    }
+
+    func testTooSmallRangeRepeatsOnlyTheLowestSets() {
+        let sets = StrengthProgram.ramp(setReps: Array(repeating: 3, count: 6), top: 60, start: 45, calculator: plates).map(\.weight)
+        XCTAssertEqual(sets, [45, 45, 45, 50, 55, 60])
+    }
+
+    /// The owner's Wed/Fri this week: calibration sessions top out at ~80% of TM.
+    func testCalibrationDayRampsToEightyPercent() {
+        let pre = BlockPosition(block: 0, week: 0, phase: .preProgram)
+        let hpc = StrengthPlanner.plan(lift: .hangPowerClean, position: pre, trainingMax: 95, calculator: plates,
+                                       input: StrengthAdjustmentInput(), calibration: true).sets.map(\.weight)
+        XCTAssertEqual(hpc.last, 75)
+        XCTAssertEqual(hpc, hpc.sorted())
+        XCTAssertEqual(Set(hpc).count, 6, "\(hpc)")
+        let pj = StrengthPlanner.plan(lift: .pushJerk, position: pre, trainingMax: 100, calculator: plates,
+                                      input: StrengthAdjustmentInput(), calibration: true).sets.map(\.weight)
+        XCTAssertEqual(pj.last, 80)
+        XCTAssertEqual(Set(pj).count, 6, "\(pj)")
+    }
+
+    func testPlannerMarksCalibrationDays() throws {
+        let w = try RulesWorkoutPlanner().makePlan(PlanRequest(date: LocalDate(2026, 10, 7), trainingMaxes: [.hangPowerClean: 95], now: TestData.now))
+        let s = try XCTUnwrap(w.strengthSection)
+        XCTAssertEqual(s.items[0].plannedSets.last?.weight, 75)
+        XCTAssertTrue(s.instructions.contains("Calibration day: rate it honestly"))
+        // In block 1 only lifts still calibrating get it.
+        var r = PlanRequest(date: LocalDate(2026, 10, 14), trainingMaxes: [.deadlift: 180], now: TestData.now)
+        XCTAssertFalse(try RulesWorkoutPlanner().makePlan(r).strengthSection!.instructions.contains("Calibration"))
+        r.calibratingLifts = [.deadlift]
+        XCTAssertEqual(try RulesWorkoutPlanner().makePlan(r).strengthSection?.items[0].plannedSets.last?.weight, 145) // 80% of 180 = 144
+    }
+}

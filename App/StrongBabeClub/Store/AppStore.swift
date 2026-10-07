@@ -101,9 +101,11 @@ final class AppStore {
     }
 
     func request(for date: LocalDate, salts: SectionSalts = SectionSalts(), id: UUID? = nil) -> PlanRequest {
-        PlanRequest(date: date, settings: settings, history: visibleWorkouts,
-                    trainingMaxes: liftPrograms.mapValues(\.trainingMax), benchmarks: benchmarks,
-                    salts: salts, now: now, workoutID: id)
+        var r = PlanRequest(date: date, settings: settings, history: visibleWorkouts,
+                            trainingMaxes: liftPrograms.mapValues(\.trainingMax), benchmarks: benchmarks,
+                            salts: salts, now: now, workoutID: id)
+        r.calibratingLifts = Set(liftPrograms.values.filter { $0.source == .calibrating }.map(\.lift))
+        return r
     }
 
     func ensurePlan(for date: LocalDate) async {

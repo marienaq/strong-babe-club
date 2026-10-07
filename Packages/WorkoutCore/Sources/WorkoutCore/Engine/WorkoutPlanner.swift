@@ -14,6 +14,8 @@ public struct PlanRequest: Sendable {
     public var now: Date
     /// Keep an existing workout's id when re-planning / shuffling.
     public var workoutID: UUID?
+    /// Lifts whose TM is still calibrating (first session decides).
+    public var calibratingLifts: Set<Lift> = []
 
     public init(date: LocalDate, settings: PlannerSettings = .default, history: [PlannedWorkout] = [],
                 trainingMaxes: [Lift: Double] = [:], benchmarks: [Benchmark] = [], salts: SectionSalts = SectionSalts(),
@@ -258,7 +260,12 @@ public struct RulesWorkoutPlanner: WorkoutPlanner {
                                                 capAtLowEnd: ctx.lighter,
                                                 push: ctx.coachNote.kind == .push && ctx.coachNote.lift == lift,
                                                 jointLimit: joint)
-            plan = StrengthPlanner.plan(lift: lift, position: pos, trainingMax: tm, calculator: ctx.plates, input: input)
+            let calibration = pos.phase == .preProgram || ctx.request.calibratingLifts.contains(lift)
+            plan = StrengthPlanner.plan(lift: lift, position: pos, trainingMax: tm, calculator: ctx.plates, input: input,
+                                        calibration: calibration)
+            if calibration {
+                ctx.reason(.strength, "calibration", "Calibration day: the heaviest set is \(Int(StrengthPlanner.calibrationTop * 100))% of your training max. Rate it honestly. This sets your numbers for block 1.")
+            }
         }
         for n in plan.notes { if let text = n.text { ctx.reason(.strength, n.rule, text) } }
 
@@ -271,6 +278,9 @@ public struct RulesWorkoutPlanner: WorkoutPlanner {
             let reps = Set(plan.prescription.setReps).count == 1 ? "\(plan.prescription.setReps[0])" : plan.prescription.setReps.map(String.init).joined(separator: "-")
             instructions = "\(plan.sets.count) sets × \(reps) going up\nRest about 2 min between sets"
             ctx.reason(.strength, "shuffle.format", "Shuffled: same lift and weights (set by your block), as straight sets instead of every 2 min.")
+        }
+        if !pos.isTestWeek && (pos.phase == .preProgram || ctx.request.calibratingLifts.contains(lift)) {
+            instructions += "\nCalibration day: rate it honestly. This sets your numbers for block 1."
         }
         var items = [SectionItem(id: UUID.seeded(&rng), letter: "A", movementID: lift.movementID, movementName: lift.displayName,
                                  reps: plan.prescription.setReps.first, prescribedWeight: plan.sets.last?.weight, plannedSets: plan.sets)]

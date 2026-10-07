@@ -91,18 +91,20 @@ public enum StrengthProgram {
             }
         }
         let startW = min(calculator.round(max(start, calculator.barWeight)).weight, topW)
-        var weights: [Double] = (0..<n).map { i in
-            n == 1 ? topW : calculator.round(startW + (topW - startW) * Double(i) / Double(n - 1)).weight
+        // Climb evenly through the loadable weights between start and top,
+        // strictly increasing. If there aren't enough distinct weights, the
+        // lowest sets repeat the start weight (never the middle).
+        let ladder = calculator.loadableTotals.filter { $0 >= startW - 0.001 && $0 <= topW + 0.001 }
+        let steps = max(ladder.count - 1, 0)
+        var weights: [Double]
+        if n == 1 || ladder.isEmpty {
+            weights = Array(repeating: topW, count: n)
+        } else if steps >= n - 1 {
+            weights = (0..<n).map { i in ladder[Int((Double(i * steps) / Double(n - 1)).rounded())] }
+        } else {
+            weights = Array(repeating: ladder[0], count: n - ladder.count) + ladder
         }
         weights[n - 1] = topW
-        // Go up each set when the range allows it.
-        let step = max(calculator.smallestStep, 0.5)
-        for i in 1..<n where weights[i] <= weights[i - 1] {
-            let ceiling = topW - step * Double(n - 1 - i)
-            let bumped = calculator.round(weights[i - 1] + step, .up).weight
-            if bumped <= ceiling + 0.001 { weights[i] = bumped } else { weights[i] = max(weights[i], weights[i - 1]) }
-        }
-        for i in 1..<n { weights[i] = max(weights[i], weights[i - 1]) }
         return (0..<n).map { i in
             PlannedSet(setNumber: i + 1, reps: setReps[i], weight: weights[i], percentOfTM: trainingMax.map { weights[i] / $0 })
         }
@@ -146,10 +148,18 @@ public struct StrengthPlan: Sendable {
 
 public enum StrengthPlanner {
     /// Applies the "adjusting to how sessions feel" rules from IOS-PLAN.
+    /// Top set for a calibration session (pre-block, or a lift whose TM is
+    /// still calibrating): heavy enough that the rating tells us something.
+    public static let calibrationTop = 0.80
+
     public static func plan(lift: Lift, position: BlockPosition, trainingMax tmIn: Double,
                             calculator: PlateCalculator, input: StrengthAdjustmentInput,
-                            rampStart: Double? = nil) -> StrengthPlan {
-        let rx = StrengthProgram.prescription(for: lift, position: position)
+                            rampStart: Double? = nil, calibration: Bool = false) -> StrengthPlan {
+        var rx = StrengthProgram.prescription(for: lift, position: position)
+        if calibration {
+            rx.topFraction = calibrationTop
+            rx.topRange = calibrationTop...calibrationTop
+        }
         var notes: [StrengthNote] = []
         func note(_ rule: String, _ text: String?) { notes.append(StrengthNote(rule: rule, text: text)) }
         var tm = tmIn
