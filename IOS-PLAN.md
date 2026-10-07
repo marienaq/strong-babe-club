@@ -23,7 +23,7 @@ A personal iPhone app that **plans each workout for me** in my coach's four-part
 | Strength lifts | Fixed for v1: Deadlift, Hang Power Clean, Front Squat, Back Squat, Push Press, Push Jerk |
 | Schedule | Mon / Wed / Fri, matching the coach's sheet |
 | Equipment | See "Home gym" below |
-| First week | Test week Oct 12–16, 2026, then block 1 starts Oct 19 |
+| First week | No test week: block 1 starts Mon Oct 12, 2026, with training maxes from recent history |
 | Historical data | Import all 123 weeks of the coach's sheet |
 
 ## Home gym (the planner only picks what's here)
@@ -63,22 +63,61 @@ History in the coach's sheet, and the starting point for each lift's weights:
 
 - **Format:** the coach's "every 2 min, going up each set" format stays, because it's familiar and works at home. What changes is that each set's reps and weights come from the strength program below instead of being made up.
 
-## Starting with a test week (Oct 12–16, 2026)
+## Starting point: history-based training maxes (updated Oct 6, 2026)
 
-Before block 1, a test week sets real training maxes. It's checked against the history imported from the coach's sheet.
+The planned Oct 12–16 test week is dropped. The recent 10-8-6-4-2 ladders and 5-rep ramps already work as tests.
 
-| Day | Lift A (every 3 min) | Lift B (every 3 min) |
-|---|---|---|
-| Mon Oct 12 | Back Squat: work up to a heavy 3 | Push Press: work up to a heavy 3 |
-| Wed Oct 14 | Deadlift: work up to a heavy 3 | Push Jerk: heavy single, clean technique only |
-| Fri Oct 16 | Front Squat: work up to a heavy 3 | Hang Power Clean: heavy single, clean technique only |
+- **Training max** = 90% of the **best Epley e1RM over the last 28 days** of logged sets, rounded to 5 lb. It's recomputed as new sessions are logged, until block 1 starts.
+- **Lifts with no recent log** borrow from a related lift and are flagged **calibrating**:
 
-- Short metabolic pieces and the usual warm-ups and cool-downs still run.
-- **Warm-up ramps** start from the imported history (e.g. Deadlift starts at 50% of 185).
-- **"Heavy" means 1–2 reps left in the tank.** Nothing is ground out.
-- **Training max** = 90% of the estimated 1RM from the test. If a lift isn't tested, it falls back to the estimate from history.
-- **Block 1:** weeks 1–12 run **Oct 19 – Jan 8**. Week 13 (test + benchmarks) is **Jan 11–15, 2027**. The holiday weeks can be marked as excused or swapped to a deload.
-- **Plate ceiling:** Deadlift could reach the 230 lb limit within about 2 blocks. When it does, the app tells me ahead of time that I need more plates.
+  | Lift | Borrowed from |
+  |---|---|
+  | Hang Power Clean | Power Clean × 0.9 |
+  | Push Jerk | Split Jerk × 0.9 or Push Press × 1.05, whichever is lower |
+  | Front Squat | Back Squat × 0.85 |
+  | Back Squat | Front Squat ÷ 0.85 |
+
+- **Calibrating lifts** start conservative. The difficulty rating from the first session moves the training max more than usual: rated 1 → +10%, 2 → +5%, 4–5 → −5%.
+- **Owner's starting maxes (Oct 6):**
+
+  | Lift | Training max |
+  |---|---|
+  | Back Squat | 135 |
+  | Front Squat | 120 |
+  | Deadlift | 180 |
+  | Push Press | 95 |
+  | Hang Power Clean | 95 (calibrating) |
+  | Push Jerk | 100 (calibrating) |
+
+- **Block 1:**
+  - Weeks 1–12 run **Oct 12, 2026 – Jan 3, 2027**.
+  - Weeks 13–14 are tests plus benchmarks: **Jan 4–17, 2027**.
+  - Block 2 starts **Jan 18, 2027**.
+  - Holiday weeks can be marked as excused or swapped to a deload.
+- **Plate ceiling:** Deadlift could reach the 230 lb limit within about 2 blocks. The app warns ahead of time that more plates are needed.
+
+## One main lift per session
+
+- Every session has **exactly one** main barbell lift, never two.
+- A second strength movement is always a **light secondary accessory**: about RPE 6–7, never tested or maxed, in a complementary pattern. It's shown as "+ 3 × 10 DB rows" next to the main lift.
+
+| Main lift | Accessory options |
+|---|---|
+| Squats | DB row, Australian pull-up, push-up |
+| Deadlift | DB bench press, push-up, DB overhead press |
+| Push press / push jerk | goblet squat, DB row, Australian pull-up |
+| Hang power clean | split squat, step-up, DB row |
+
+## Quarterly tests
+
+- A quarter is **12 training weeks + 2 test weeks**.
+- **Test sessions:**
+  - one main lift per session;
+  - work up to a **heavy 3 with 1–2 reps in reserve**, never a true 1RM;
+  - the e1RM is estimated from that heavy 3;
+  - each session also gets a light accessory.
+- **Next block's training max** = the lower of (TM + 10 lb for lower body, or + 5 lb for presses and Olympic lifts) and the test result.
+- **New users** who choose "test" start with the same 2 test weeks.
 
 ## Strength program: quarterly blocks based on a training max
 
@@ -87,7 +126,7 @@ This combines three well-tested ideas, with the coach's every-2-minute ramping s
 - **Block periodization:** a volume phase, then a strength phase, then a peak.
 - **Prilepin's chart:** sensible rep ranges for the Olympic lifts.
 
-Each block is 13 weeks, so it lines up with the quarterly benchmark repeats. Every lift comes up twice in each 4-week phase.
+Each block is 14 weeks (12 training + 2 test), so it lines up with the quarterly benchmark repeats. Every lift comes up twice in each 4-week phase.
 
 **Training max (TM):** 90% of an estimated 1-rep max, worked out from my logged top sets (Epley formula). From the coach's sheet:
 
@@ -195,7 +234,7 @@ Rule-based and running on the phone, so it works offline, costs nothing and can 
 ## Quarterly benchmark repeats
 
 - **Benchmarks:** about 6 metabolic workouts are tagged as benchmarks. They start as favourites from the coach's sheet and are a mix of AMRAP, interval, for-time and ladder formats.
-- **Schedule:** each benchmark comes back **once a quarter**, spread across the 13 weeks (about one every two weeks). Every other metabolic piece is remixed.
+- **Schedule:** each benchmark comes back **once a quarter**, spread across the 12 training weeks (about one every two weeks; the test weeks catch up any missed). Every other metabolic piece is remixed.
 - **Exact repeats:** a benchmark repeats exactly, with the same moves, weights and timing and the same name (e.g. `amrap-5-4-fungi`), so scores can be compared.
 - **Screens:**
   - Metabolic and Finish show last quarter's score next to today's, round by round.
@@ -261,7 +300,7 @@ All tables have `id` (UUID), `created_at`, `updated_at` and `deleted_at`.
    - **Workouts:** every Mon/Wed/Fri workout with its four sections, the coach's notes and my notes.
    - **My logs:** strength weights become set logs and metabolic scores become round logs, so History, Progress charts, PRs and the "last time" values are full from day one.
    - **Libraries:** the movement library and the benchmark candidates are seeded from it.
-   - **Starting point:** it's the fallback for training maxes, and it sets the warm-up ramps for the test week.
+   - **Starting point:** it's the fallback for training maxes, and it sets the starting training maxes (best e1RM over the last 28 days).
 3. **Programming engine (2–3 weeks):** rotation, weights, why/shuffle, limits.
 4. **Motivation (1 week):** streak, % completed, excused days, coach's notes.
 5. **Progress (1–2 weeks):** charts and goals.

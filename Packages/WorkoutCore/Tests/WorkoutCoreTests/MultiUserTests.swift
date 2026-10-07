@@ -42,8 +42,6 @@ final class GeneralRotationTests: XCTestCase {
         XCTAssertEqual(r.lift(for: LocalDate(2026, 10, 1)), .pushPress)
         XCTAssertEqual(r.lift(for: LocalDate(2026, 10, 5)), .backSquat)
         XCTAssertEqual(r.lift(for: LocalDate(2026, 9, 24)), .backSquat, "Thursday before the anchor wraps backwards")
-        XCTAssertTrue(r.testLifts(for: anchor) == (.deadlift, .pushPress))
-        XCTAssertTrue(r.testLifts(for: LocalDate(2026, 10, 1)) == (.backSquat, .deadlift))
     }
 
     func testCleanedLifts() {

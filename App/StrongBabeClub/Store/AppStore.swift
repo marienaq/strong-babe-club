@@ -340,11 +340,13 @@ final class AppStore {
                                 rotationAnchor: thisMonday, lifts: c.lifts, onboarded: true)
         switch c.start {
         case .testWeek:
-            // Next Monday tests; block 1 follows a week later.
+            // Two test weeks from next Monday, then block 1.
             s.testWeekStart = thisMonday.adding(days: 7)
+            s.initialTestWeeks = 2
         case .manual, .startLight:
-            // Block 1 starts this week; no test week.
-            s.testWeekStart = thisMonday.adding(days: -7)
+            // Block 1 starts this week; no test.
+            s.testWeekStart = thisMonday
+            s.initialTestWeeks = 0
         }
         updateSettings(s)
         let bar = s.equipment.barWeight

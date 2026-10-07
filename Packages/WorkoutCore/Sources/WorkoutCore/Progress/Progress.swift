@@ -157,7 +157,7 @@ public enum ProgressSeries {
     }
 
     /// Phase of each of the 13 weeks of a block, for the block strip.
-    public static func blockStrip() -> [BlockPhase] { (1...13).map(BlockPhase.forBlockWeek) }
+    public static func blockStrip() -> [BlockPhase] { (1...ProgramCalendar.blockLengthWeeks).map(BlockPhase.forBlockWeek) }
 
     /// Strength summary for the Finish screen.
     public static func strengthSummary(_ section: WorkoutSection?) -> (top: Double, total: Double)? {

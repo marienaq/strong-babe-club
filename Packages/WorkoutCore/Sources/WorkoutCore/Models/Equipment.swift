@@ -157,8 +157,12 @@ public struct PlannerSettings: Codable, Hashable, Sendable {
     public var targetMinutes: Int
     /// Monday of a known "Week A" (Back Squat / Deadlift / Push Press).
     public var rotationAnchor: LocalDate
-    /// Monday of the first test week. Block 1 starts the Monday after.
+    /// Start of the program: an initial test period if `initialTestWeeks` > 0,
+    /// otherwise block 1 itself (the owner's block 1: Mon Oct 12 2026).
     public var testWeekStart: LocalDate
+    /// 0 = straight into block 1; 2 = two test weeks first (new users who
+    /// choose "test").
+    public var initialTestWeeks: Int
     /// Mondays of weeks that are swapped to a deload (e.g. holidays).
     public var deloadWeeks: [LocalDate]
     /// Planned breaks (vacations): scheduled days inside are excused.
@@ -172,7 +176,7 @@ public struct PlannerSettings: Codable, Hashable, Sendable {
                 equipment: EquipmentInventory = .homeGym, limits: TrainingLimits = TrainingLimits(),
                 targetMinutes: Int = 50, rotationAnchor: LocalDate = LocalDate(2026, 9, 28),
                 testWeekStart: LocalDate = LocalDate(2026, 10, 12), deloadWeeks: [LocalDate] = [],
-                breaks: [TrainingBreak] = [], lifts: [Lift] = Lift.allCases, onboarded: Bool = false) {
+                breaks: [TrainingBreak] = [], lifts: [Lift] = Lift.allCases, onboarded: Bool = false, initialTestWeeks: Int = 0) {
         self.displayName = displayName
         self.schedule = schedule
         self.equipment = equipment
@@ -184,10 +188,11 @@ public struct PlannerSettings: Codable, Hashable, Sendable {
         self.breaks = breaks
         self.lifts = lifts
         self.onboarded = onboarded
+        self.initialTestWeeks = initialTestWeeks
     }
 
     enum CodingKeys: String, CodingKey {
-        case displayName, schedule, equipment, limits, targetMinutes, rotationAnchor, testWeekStart, deloadWeeks, breaks, lifts, onboarded
+        case displayName, schedule, equipment, limits, targetMinutes, rotationAnchor, testWeekStart, deloadWeeks, breaks, lifts, onboarded, initialTestWeeks
     }
 
     /// Tolerant: settings saved by older versions (no `breaks`, ...) still load.
@@ -205,6 +210,9 @@ public struct PlannerSettings: Codable, Hashable, Sendable {
         breaks = try c.decodeIfPresent([TrainingBreak].self, forKey: .breaks) ?? []
         lifts = try c.decodeIfPresent([Lift].self, forKey: .lifts) ?? Lift.allCases
         onboarded = try c.decodeIfPresent(Bool.self, forKey: .onboarded) ?? true
+        // Older settings had a one-week test before block 1; that test week is
+        // dropped: their block 1 starts on the saved date.
+        initialTestWeeks = try c.decodeIfPresent(Int.self, forKey: .initialTestWeeks) ?? 0
     }
 
     public static let `default` = PlannerSettings()
@@ -230,7 +238,7 @@ public struct PlannerSettings: Codable, Hashable, Sendable {
     }
 
     public var calendar: ProgramCalendar {
-        ProgramCalendar(testWeekStart: testWeekStart, deloadWeeks: Set(deloadWeeks.map(\.startOfWeek)))
+        ProgramCalendar(testWeekStart: testWeekStart, initialTestWeeks: initialTestWeeks, deloadWeeks: Set(deloadWeeks.map(\.startOfWeek)))
     }
 
     public var rotation: LiftRotation { LiftRotation(anchor: rotationAnchor, schedule: sortedSchedule, lifts: lifts) }
@@ -246,6 +254,7 @@ public struct PlannerSettings: Codable, Hashable, Sendable {
         c.deloadWeeks = Array(Set(deloadWeeks.map(\.startOfWeek))).sorted().suffix(52)
         c.breaks = Array(breaks.map { $0.sanitized() }.sorted { $0.from < $1.from }.prefix(50))
         c.lifts = LiftRotation.cleaned(lifts)
+        c.initialTestWeeks = initialTestWeeks > 0 ? ProgramCalendar.testWeeks : 0
         return c
     }
 }

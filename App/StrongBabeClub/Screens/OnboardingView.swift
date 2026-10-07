@@ -142,7 +142,7 @@ struct OnboardingView: View {
             .pickerStyle(.segmented)
             .accessibilityIdentifier("startMode")
             switch startMode {
-            case 0: Text("Next week you work up to a few heavy sets to find your numbers. Training starts the week after.").bodyText(14, .semibold)
+            case 0: Text("Two test weeks from next Monday: one lift per session, worked up to a heavy 3 (never a true max). Training starts after.").bodyText(14, .semibold)
             case 1:
                 Text("Heaviest weight you can lift 5 times, per lift (\(c.unit.symbol)). Leave blank if unsure.").bodyText(14, .semibold)
                 ForEach(c.lifts, id: \.self) { lift in

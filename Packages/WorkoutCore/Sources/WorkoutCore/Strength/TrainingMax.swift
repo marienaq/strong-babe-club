@@ -38,9 +38,10 @@ public enum TrainingMax {
 
     /// Fallback TM for a lift from imported/logged history: the most recent
     /// session's top set.
+    /// History-based TM as of the day after the latest workout (see `estimate`).
     public static func fromHistory(_ lift: Lift, workouts: [PlannedWorkout]) -> Double? {
-        guard let last = LiftHistory.sessions(of: lift, in: workouts).last, let top = last.topSet else { return nil }
-        return fromSet(weight: top.weight, reps: top.reps)
+        guard let last = workouts.filter({ $0.status == .done }).map(\.date).max() else { return nil }
+        return estimate(lift, history: workouts, asOf: last.adding(days: 1))?.trainingMax
     }
 
     /// Resolves the TM for each lift: explicit program first, then history,

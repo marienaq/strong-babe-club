@@ -83,7 +83,7 @@ final class HistoryImporterTests: XCTestCase {
         """
         let w = try importer.importCoachHistory(Data(json.utf8)).workouts[0]
         XCTAssertEqual(w.strengthSection?.items.first?.setLogs.map(\.reps), [10, 8, 6, 4, 2])
-        XCTAssertEqual(TrainingMax.fromHistory(.deadlift, workouts: [w]), TrainingMax.fromSet(weight: 185, reps: 2))
+        XCTAssertEqual(TrainingMax.fromHistory(.deadlift, workouts: [w]), 180) // best e1RM 185 × 2 = 197.3 -> 90% = 177.6 -> 180
     }
 
     func testDuplicateNoteIgnored() throws {

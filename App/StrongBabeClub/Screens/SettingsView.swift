@@ -132,7 +132,7 @@ struct SettingsView: View {
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("Program") {
-                    DatePicker("First test week", selection: dateBinding(\.testWeekStart), displayedComponents: .date)
+                    DatePicker(draft.initialTestWeeks > 0 ? "Test weeks start" : "Block 1 starts", selection: dateBinding(\.testWeekStart), displayedComponents: .date)
                     NavigationLink("Training maxes") { TrainingMaxView() }
                     NavigationLink("Benchmarks (\(store.benchmarks.filter(\.active).count) active)") { BenchmarksView() }
                     NavigationLink("Main lifts (\(store.settings.lifts.count))") { LiftsView() }
@@ -310,8 +310,8 @@ struct TrainingMaxView: View {
                 }
             } footer: {
                 Text(unit == .kg
-                     ? "Training max = 90% of your estimated 1-rep max. It goes up about 4.5 kg (lower body) or 2.5 kg (presses, Olympic lifts) each block, or resets from the week-13 test, whichever is lower."
-                     : "Training max = 90% of your estimated 1-rep max. It goes up +10 lb (lower body) or +5 lb (presses, Olympic lifts) each block, or resets from the week-13 test, whichever is lower.")
+                     ? "Training max = 90% of your best estimated 1-rep max from the last 4 weeks (\"calibrating\" = borrowed from a related lift until your first session). It goes up about 4.5 kg (lower body) or 2.5 kg (presses, Olympic lifts) each block, or resets from the two test weeks at the end of each block, whichever is lower."
+                     : "Training max = 90% of your best estimated 1-rep max from the last 4 weeks (\"calibrating\" = borrowed from a related lift until your first session). It goes up +10 lb (lower body) or +5 lb (presses, Olympic lifts) each block, or resets from the two test weeks at the end of each block, whichever is lower.")
             }
         }
         .navigationTitle("Training maxes")

@@ -13,16 +13,17 @@ final class BenchmarkSchedulerTests: XCTestCase {
     func testNoneBeforeBlockOne() {
         let b = [TestData.benchmark(slot: 0)]
         XCTAssertNil(scheduler.due(on: LocalDate(2026, 10, 5), benchmarks: b, history: []))
-        XCTAssertNil(scheduler.due(on: LocalDate(2026, 10, 14), benchmarks: b, history: []))
+        let tested = BenchmarkScheduler(calendar: ProgramCalendar(testWeekStart: LocalDate(2026, 10, 12), initialTestWeeks: 2))
+        XCTAssertNil(tested.due(on: LocalDate(2026, 10, 14), benchmarks: b, history: []), "not during the initial test weeks")
     }
 
     func testDueFromSlotWeekUntilDone() {
         let b0 = TestData.benchmark(slot: 0, name: "amrap-5-4-alpha"), b1 = TestData.benchmark(slot: 1, name: "amrap-5-4-beta")
-        XCTAssertEqual(scheduler.due(on: LocalDate(2026, 10, 19), benchmarks: [b0, b1], history: [])?.id, b0.id)
+        XCTAssertEqual(scheduler.due(on: LocalDate(2026, 10, 12), benchmarks: [b0, b1], history: [])?.id, b0.id)
         // b1 isn't due until week 3.
-        let done0 = PlannedWorkout(date: LocalDate(2026, 10, 19), status: .done, sections: [b0.template])
-        XCTAssertNil(scheduler.due(on: LocalDate(2026, 10, 26), benchmarks: [b0, b1], history: [done0]))
-        XCTAssertEqual(scheduler.due(on: LocalDate(2026, 11, 2), benchmarks: [b0, b1], history: [done0])?.id, b1.id)
+        let done0 = PlannedWorkout(date: LocalDate(2026, 10, 12), status: .done, sections: [b0.template])
+        XCTAssertNil(scheduler.due(on: LocalDate(2026, 10, 19), benchmarks: [b0, b1], history: [done0]))
+        XCTAssertEqual(scheduler.due(on: LocalDate(2026, 10, 26), benchmarks: [b0, b1], history: [done0])?.id, b1.id)
     }
 
     func testOncePerBlockAndBackNextQuarter() {
@@ -36,8 +37,8 @@ final class BenchmarkSchedulerTests: XCTestCase {
         let b0 = TestData.benchmark(slot: 0, name: "amrap-5-4-alpha"), b1 = TestData.benchmark(slot: 1, name: "amrap-5-4-beta")
         let doneMon = PlannedWorkout(date: LocalDate(2026, 11, 2), status: .done, sections: [b0.template])
         XCTAssertNil(scheduler.due(on: LocalDate(2026, 11, 4), benchmarks: [b0, b1], history: [doneMon]))
-        let doneTestMon = PlannedWorkout(date: LocalDate(2027, 1, 11), status: .done, sections: [b0.template])
-        XCTAssertEqual(scheduler.due(on: LocalDate(2027, 1, 13), benchmarks: [b0, b1], history: [doneTestMon])?.id, b1.id)
+        let doneTestMon = PlannedWorkout(date: LocalDate(2027, 1, 4), status: .done, sections: [b0.template])
+        XCTAssertEqual(scheduler.due(on: LocalDate(2027, 1, 6), benchmarks: [b0, b1], history: [doneTestMon])?.id, b1.id)
     }
 
     func testInactiveIgnored() {
@@ -195,7 +196,7 @@ final class ProgressTests: XCTestCase {
         let sum = ProgressSeries.strengthSummary(w.strengthSection)
         XCTAssertEqual(sum?.top, 125)
         XCTAssertEqual(sum?.total, 2925) // matches the Finish mockup
-        XCTAssertEqual(ProgressSeries.blockStrip().count, 13)
+        XCTAssertEqual(ProgressSeries.blockStrip().count, 14)
     }
 }
 

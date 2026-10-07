@@ -142,36 +142,47 @@ struct ProgressScreen: View {
         .padding(6)
     }
 
+    /// 14 cells: 12 training weeks + 2 test weeks.
     var blockStrip: some View {
-        let pos = store.calendar.position(on: store.today)
+        let cal = store.calendar
+        let pos = cal.position(on: store.today)
         let strip = ProgressSeries.blockStrip()
+        let title = pos.block == 0 ? (pos.phase == .test ? "test weeks" : "block 1") : "block \(pos.block)"
+        let detail: String = {
+            switch (pos.block, pos.phase) {
+            case (0, .preProgram):
+                return cal.initialTestWeeks > 0
+                    ? "test weeks from \(cal.testWeekStart.shortMonthName) \(cal.testWeekStart.day) · block 1 \(cal.block1Start.shortMonthName) \(cal.block1Start.day)"
+                    : "starts \(cal.block1Start.shortDisplay)"
+            case (0, _): return "test week \(pos.week - 12) of 2 · block 1 \(cal.block1Start.shortMonthName) \(cal.block1Start.day)"
+            default: return "week \(pos.week) of 14 · \(pos.phase.displayName)"
+            }
+        }()
+        let currentIndex: Int? = pos.block >= 1 ? pos.week - 1 : nil
         return PaperCard(rotation: 0.8, tape: WashiTape(color: Palette.sunny, stripe: Palette.sunnyLight, width: 60, angle: -2)) {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(pos.block == 0 ? "block 1" : "block \(pos.block)").hand(22)
+                    Text.caveat(title).hand(22)
                     Spacer()
-                    Text(pos.block == 0 ? "test week \(store.calendar.testWeekStart.shortMonthName) \(store.calendar.testWeekStart.day) · starts \(store.calendar.block1Start.shortMonthName) \(store.calendar.block1Start.day)" : "week \(pos.week) · \(pos.phase.displayName)")
-                        .bodyText(13, .bold, color: Palette.muted)
+                    Text(detail).bodyText(13, .bold, color: Palette.muted).lineLimit(1).minimumScaleFactor(0.8)
                 }
-                // Cell 0 is the test week before the block; cells 1-12 are block weeks 1-12.
-                let currentIndex = (pos.block == 0 || pos.week == 13) ? 0 : pos.week
                 HStack(spacing: 3) {
-                    ForEach(Array(([BlockPhase.test] + strip.dropLast()).enumerated()), id: \.offset) { i, phase in
-                        let current = i == currentIndex
+                    ForEach(Array(strip.enumerated()), id: \.offset) { i, phase in
                         RoundedRectangle(cornerRadius: 5).fill(color(phase))
                             .frame(height: 22)
-                            .overlay { if i == 0 { Text("T").hand(13) } }
-                            .overlay { if current { RoundedRectangle(cornerRadius: 5).strokeBorder(Palette.ink, lineWidth: 2) } }
+                            .overlay { if phase == .test { Text("T").hand(13) } }
+                            .overlay { if i == currentIndex { RoundedRectangle(cornerRadius: 5).strokeBorder(Palette.ink, lineWidth: 2) } }
                     }
                 }
                 HStack {
-                    ForEach(["test", "volume", "strength", "peak", "deload"], id: \.self) { Text($0); if $0 != "deload" { Spacer() } }
+                    ForEach(["volume", "strength", "peak", "deload", "test"], id: \.self) { Text($0); if $0 != "test" { Spacer() } }
                 }
                 .hand(16, color: Palette.muted)
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Block \(max(pos.block, 1)), week \(pos.week), \(pos.phase.displayName) phase")
+        .accessibilityLabel(pos.block >= 1 ? "Block \(pos.block), week \(pos.week) of 14, \(pos.phase.displayName) phase" : "\(title), \(detail)")
+        .accessibilityIdentifier("blockStrip")
     }
 
     func color(_ p: BlockPhase) -> Color {

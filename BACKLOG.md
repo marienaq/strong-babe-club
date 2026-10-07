@@ -55,6 +55,11 @@ Features a stranger needs on day one:
   - App Store items (privacy policy, store screenshots, support contact).
 
 ## Done
+- **Round 6 (programming):**
+  - One main lift per session, plus a light accessory.
+  - The test week is replaced by training maxes from history: 90% of the best e1RM over the last 28 days, with related lifts used for "calibrating" lifts.
+  - Block 1 starts Oct 12, 2026.
+  - A quarter is 12 training weeks + 2 test weeks (heavy 3 with 1–2 reps in reserve).
 - v1 core flow, scrapbook design, real-history import, timers and sounds, streak against the schedule, sick days and breaks, app icon.
 
 ## Known polish

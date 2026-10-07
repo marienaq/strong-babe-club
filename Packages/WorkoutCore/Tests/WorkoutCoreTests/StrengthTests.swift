@@ -41,7 +41,8 @@ final class TrainingMaxTests: XCTestCase {
         let history = [TestData.strengthDay(LocalDate(2026, 9, 28), .backSquat, weights: [65, 80, 100, 120, 135])]
         let tms = TrainingMax.resolve(programs: [.deadlift: 200], history: history, barWeight: 45)
         XCTAssertEqual(tms[.deadlift], 200)
-        XCTAssertEqual(tms[.backSquat], 145)
+        XCTAssertEqual(tms[.backSquat], 140) // 90% of the 157.5 e1RM, to 5 lb
+        XCTAssertEqual(tms[.frontSquat], 120, "related lift: back squat × 0.85")
         XCTAssertEqual(tms[.pushJerk], 65)
         XCTAssertEqual(tms.count, 6)
     }
@@ -64,42 +65,55 @@ final class TrainingMaxTests: XCTestCase {
 final class ProgramCalendarTests: XCTestCase {
     let cal = ProgramCalendar()
 
-    func testPreProgramAndTestWeek() {
+    /// The owner: block 1 starts Mon Oct 12 2026 with no test week.
+    func testNoTestWeekBeforeBlockOne() {
         XCTAssertEqual(cal.position(on: LocalDate(2026, 10, 5)).phase, .preProgram)
-        let t = cal.position(on: LocalDate(2026, 10, 14))
-        XCTAssertEqual(t.phase, .test)
-        XCTAssertEqual(t.block, 0)
-        XCTAssertTrue(t.isTestWeek)
-    }
-
-    func testBlockOneDates() {
-        let w1 = cal.position(on: LocalDate(2026, 10, 19))
+        let w1 = cal.position(on: LocalDate(2026, 10, 12))
         XCTAssertEqual(w1.block, 1)
         XCTAssertEqual(w1.week, 1)
         XCTAssertEqual(w1.phase, .volume)
-        XCTAssertEqual(cal.position(on: LocalDate(2026, 11, 16)).phase, .strength) // week 5
-        XCTAssertEqual(cal.position(on: LocalDate(2026, 12, 14)).phase, .peak) // week 9
-        let deload = cal.position(on: LocalDate(2027, 1, 8))
+        XCTAssertEqual(cal.block1Start, LocalDate(2026, 10, 12))
+    }
+
+    /// New users who choose "test": two test weeks, then block 1.
+    func testInitialTwoWeekTest() {
+        let c = ProgramCalendar(testWeekStart: LocalDate(2026, 10, 12), initialTestWeeks: 2)
+        XCTAssertEqual(c.block1Start, LocalDate(2026, 10, 26))
+        let t1 = c.position(on: LocalDate(2026, 10, 14)), t2 = c.position(on: LocalDate(2026, 10, 23))
+        XCTAssertEqual([t1.phase, t2.phase], [.test, .test])
+        XCTAssertEqual([t1.week, t2.week], [13, 14])
+        XCTAssertEqual(t1.block, 0)
+        XCTAssertEqual(c.position(on: LocalDate(2026, 10, 26)).block, 1)
+        XCTAssertEqual(c.contextLabel(on: LocalDate(2026, 10, 5)), "test weeks start Oct 12")
+        XCTAssertEqual(c.contextLabel(on: LocalDate(2026, 10, 23)), "test week 2 of 2")
+    }
+
+    /// A quarter = 12 training weeks + 2 test weeks.
+    func testBlockOneDates() {
+        XCTAssertEqual(cal.position(on: LocalDate(2026, 11, 9)).phase, .strength) // week 5
+        XCTAssertEqual(cal.position(on: LocalDate(2026, 12, 7)).phase, .peak) // week 9
+        let deload = cal.position(on: LocalDate(2027, 1, 1))
         XCTAssertEqual(deload.week, 12)
         XCTAssertEqual(deload.phase, .deload)
-        let test = cal.position(on: LocalDate(2027, 1, 11))
-        XCTAssertEqual(test.week, 13)
-        XCTAssertEqual(test.phase, .test)
-        XCTAssertEqual(cal.position(on: LocalDate(2027, 1, 15)).week, 13)
+        let test1 = cal.position(on: LocalDate(2027, 1, 4)), test2 = cal.position(on: LocalDate(2027, 1, 15))
+        XCTAssertEqual([test1.week, test2.week], [13, 14])
+        XCTAssertEqual([test1.phase, test2.phase], [.test, .test])
         let b2 = cal.position(on: LocalDate(2027, 1, 18))
         XCTAssertEqual(b2.block, 2)
         XCTAssertEqual(b2.week, 1)
     }
 
     func testBlockRanges() {
-        XCTAssertEqual(cal.dateRange(ofBlock: 1), LocalDate(2026, 10, 19)...LocalDate(2027, 1, 17))
+        XCTAssertEqual(cal.dateRange(ofBlock: 1), LocalDate(2026, 10, 12)...LocalDate(2027, 1, 17))
         XCTAssertEqual(cal.startOfBlock(2), LocalDate(2027, 1, 18))
-        XCTAssertEqual(cal.startOfWeek(block: 1, week: 13), LocalDate(2027, 1, 11))
+        XCTAssertEqual(cal.startOfWeek(block: 1, week: 13), LocalDate(2027, 1, 4))
+        XCTAssertEqual(TrainingMaxBook.testWeekRange(beforeBlock: 2, calendar: cal), LocalDate(2027, 1, 4)...LocalDate(2027, 1, 17))
+        XCTAssertNil(TrainingMaxBook.testWeekRange(beforeBlock: 1, calendar: cal))
     }
 
     func testPhaseTable() {
-        XCTAssertEqual((1...13).map(BlockPhase.forBlockWeek),
-                       [.volume, .volume, .volume, .volume, .strength, .strength, .strength, .strength, .peak, .peak, .peak, .deload, .test])
+        XCTAssertEqual((1...14).map(BlockPhase.forBlockWeek),
+                       [.volume, .volume, .volume, .volume, .strength, .strength, .strength, .strength, .peak, .peak, .peak, .deload, .test, .test])
     }
 
     func testHolidayDeloadOverride() {
@@ -153,12 +167,6 @@ final class RotationTests: XCTestCase {
             let slots = [0, 2, 4].map { rot.lift(for: monday.adding(days: $0)).slot }
             XCTAssertEqual(slots, [.squat, .hipPull, .overhead])
         }
-    }
-
-    func testTestWeekPairs() {
-        XCTAssertTrue(rot.testLifts(for: LocalDate(2026, 10, 12)) == (.backSquat, .pushPress))
-        XCTAssertTrue(rot.testLifts(for: LocalDate(2026, 10, 14)) == (.deadlift, .pushJerk))
-        XCTAssertTrue(rot.testLifts(for: LocalDate(2026, 10, 16)) == (.frontSquat, .hangPowerClean))
     }
 
     func testCustomScheduleAndUnscheduledDays() {
@@ -301,6 +309,6 @@ final class StrengthProgramTests: XCTestCase {
     func testInstructionsMatchCoachFormat() {
         let rx = StrengthProgram.prescription(for: .frontSquat, position: pos(1))
         XCTAssertEqual(rx.instructions, "Every 2 min for 12 min\n5 reps · go up each set")
-        XCTAssertTrue(StrengthProgram.prescription(for: .pushJerk, position: pos(13)).instructions.contains("heavy single"))
+        XCTAssertTrue(StrengthProgram.prescription(for: .pushJerk, position: pos(13)).instructions.contains("heavy 3"))
     }
 }

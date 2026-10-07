@@ -29,6 +29,16 @@ if let historyPath {
     }
 }
 let settings = PlannerSettings.default
+if !history.isEmpty {
+    let asOf = start
+    print("Training maxes as of \(asOf) (block 1 starts \(settings.calendar.block1Start)):")
+    for lift in Lift.allCases {
+        if let e = TrainingMax.estimate(lift, history: history, asOf: min(asOf, settings.calendar.block1Start)) {
+            print("  \(lift.displayName): \(formatPounds(e.trainingMax)) lb\(e.calibrating ? " (calibrating)" : "") from \(e.basis)")
+        }
+    }
+    print("")
+}
 let benchmarks = BenchmarkProposer.propose(from: history)
 let planner = RulesWorkoutPlanner()
 var d = start

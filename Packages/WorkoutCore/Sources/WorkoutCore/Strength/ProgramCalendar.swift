@@ -4,7 +4,7 @@ public enum BlockPhase: String, Codable, Sendable, CaseIterable {
     /// Before the first test week (uses history-based TMs, volume-style work).
     case preProgram = "pre_program"
     case volume, strength, peak, deload
-    /// Week 13 (and the initial test week): test + benchmarks.
+    /// Weeks 13-14 (and an optional initial test period): test + benchmarks.
     case test
 
     public var displayName: String {
@@ -36,7 +36,7 @@ public enum BlockPhase: String, Codable, Sendable, CaseIterable {
         case .strength: return 5...8
         case .peak: return 9...11
         case .deload: return 12...12
-        case .test: return 13...13
+        case .test: return 13...14
         }
     }
 }
@@ -70,16 +70,23 @@ public struct BlockPosition: Codable, Hashable, Sendable {
 /// Test week (Oct 12-16 2026) -> block 1 weeks 1-12 (Oct 19 - Jan 8) -> week 13
 /// test + benchmarks (Jan 11-15 2027) -> block 2 ...
 public struct ProgramCalendar: Hashable, Sendable {
-    public static let blockLengthWeeks = 13
+    /// A quarter: 12 training weeks + 2 test weeks.
+    public static let blockLengthWeeks = 14
+    public static let testWeeks = 2
+    /// Start of the program: the initial test period, or block 1 itself
+    /// when `initialTestWeeks` is 0.
     public let testWeekStart: LocalDate
+    /// 0 (start straight into block 1) or 2 (a test period first).
+    public let initialTestWeeks: Int
     public let deloadWeeks: Set<LocalDate>
 
-    public init(testWeekStart: LocalDate = LocalDate(2026, 10, 12), deloadWeeks: Set<LocalDate> = []) {
+    public init(testWeekStart: LocalDate = LocalDate(2026, 10, 12), initialTestWeeks: Int = 0, deloadWeeks: Set<LocalDate> = []) {
         self.testWeekStart = testWeekStart.startOfWeek
+        self.initialTestWeeks = initialTestWeeks > 0 ? ProgramCalendar.testWeeks : 0
         self.deloadWeeks = deloadWeeks
     }
 
-    public var block1Start: LocalDate { testWeekStart.adding(days: 7) }
+    public var block1Start: LocalDate { testWeekStart.adding(days: 7 * initialTestWeeks) }
 
     public func startOfBlock(_ n: Int) -> LocalDate {
         precondition(n >= 1)
@@ -88,7 +95,7 @@ public struct ProgramCalendar: Hashable, Sendable {
 
     /// Monday of week `week` (1...13) in block `n`.
     public func startOfWeek(block n: Int, week: Int) -> LocalDate {
-        if n == 0 { return testWeekStart }
+        if n == 0 { return testWeekStart.adding(days: (max(week, 13) - 13) * 7) }
         return startOfBlock(n).adding(days: (week - 1) * 7)
     }
 
@@ -104,8 +111,13 @@ public struct ProgramCalendar: Hashable, Sendable {
     public func contextLabel(on date: LocalDate) -> String {
         let p = position(on: date)
         switch p.phase {
-        case .preProgram: return "test week starts \(testWeekStart.shortMonthName) \(testWeekStart.day)"
-        case .test: return p.block == 0 ? "test week" : "block \(p.block) · test week"
+        case .preProgram:
+            return initialTestWeeks > 0
+                ? "test weeks start \(testWeekStart.shortMonthName) \(testWeekStart.day)"
+                : "block 1 starts \(block1Start.shortMonthName) \(block1Start.day)"
+        case .test:
+            let n = p.week - 12
+            return p.block == 0 ? "test week \(n) of 2" : "block \(p.block) · test week \(n) of 2"
         default:
             let phase = p.isDeloadOverride ? "deload (swapped)" : p.phase.displayName
             return "block \(p.block) · week \(p.week) · \(phase)"
@@ -114,7 +126,7 @@ public struct ProgramCalendar: Hashable, Sendable {
 
     public func position(on date: LocalDate) -> BlockPosition {
         if date < testWeekStart { return BlockPosition(block: 0, week: 0, phase: .preProgram) }
-        if date < block1Start { return BlockPosition(block: 0, week: 13, phase: .test) }
+        if date < block1Start { return BlockPosition(block: 0, week: 13 + testWeekStart.days(until: date) / 7, phase: .test) }
         let d = block1Start.days(until: date)
         let blockDays = ProgramCalendar.blockLengthWeeks * 7
         let block = d / blockDays + 1
@@ -135,8 +147,6 @@ public struct LiftRotation: Hashable, Sendable {
 
     public static let weekA: [Lift] = [.backSquat, .deadlift, .pushPress]
     public static let weekB: [Lift] = [.frontSquat, .hangPowerClean, .pushJerk]
-    /// Test week pairs (Lift A, Lift B) per slot.
-    public static let testWeekPairs: [(Lift, Lift)] = [(.backSquat, .pushPress), (.deadlift, .pushJerk), (.frontSquat, .hangPowerClean)]
 
     public let anchor: LocalDate
     public let schedule: [Weekday]
@@ -188,16 +198,6 @@ public struct LiftRotation: Hashable, Sendable {
         }
         let lifts = week(for: date) == .a ? LiftRotation.weekA : LiftRotation.weekB
         return lifts[slotIndex(for: date)]
-    }
-
-    /// Two lifts per test day: the classic pairs, or the chosen lifts two by two.
-    public func testLifts(for date: LocalDate) -> (Lift, Lift) {
-        guard isClassic else {
-            let k = schedule.filter { $0 < date.weekday }.count
-            let n = lifts.count
-            return (lifts[(2 * k) % n], lifts[(2 * k + 1) % n])
-        }
-        return LiftRotation.testWeekPairs[slotIndex(for: date)]
     }
 
     /// Next scheduled date on or after `date`.

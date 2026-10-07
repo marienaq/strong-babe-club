@@ -21,8 +21,8 @@ public struct StrengthPrescription: Hashable, Sendable {
         let reps = Set(setReps).count == 1 ? "\(setReps[0]) reps" : setReps.map(String.init).joined(separator: "-") + " reps"
         switch phase {
         case .test:
-            let target = lift.isOlympic ? "a heavy single, clean technique only" : "a heavy 3 (or a single if feeling good)"
-            return "Every \(every): work up to \(target)\n1-2 reps left in the tank. Nothing is ground out."
+            let tech = lift.isOlympic ? " Clean technique only." : ""
+            return "Every \(every): work up to a heavy 3\n1-2 reps left in the tank, never a true max.\(tech)"
         case .deload:
             return "Every \(every) for \(minutes) min\n\(reps) at \(Int(topFraction * 100))% · fast and crisp"
         default:
@@ -32,9 +32,8 @@ public struct StrengthPrescription: Hashable, Sendable {
 }
 
 public enum StrengthProgram {
-    /// Interval for one lift (coach format) and for two-lift test days.
+    /// Every 2 minutes (coach format); one main lift per session.
     public static let singleLiftInterval = 120
-    public static let twoLiftInterval = 180
 
     /// The block table from IOS-PLAN.
     public static func prescription(for lift: Lift, position: BlockPosition) -> StrengthPrescription {
@@ -58,7 +57,8 @@ public enum StrengthProgram {
             range = 0.60...0.60
             flat = true
         case .test:
-            setReps = olympic ? [2, 2, 1, 1, 1, 1] : [3, 3, 3, 3, 3, 3]
+            // Work up to a heavy 3 with 1-2 reps in reserve (never a true max).
+            setReps = [3, 3, 3, 3, 3, 3]
             range = 0.95...1.0
         }
         // Olympic lifts never go above 3 reps per set.
@@ -73,7 +73,7 @@ public enum StrengthProgram {
             frac = Double(min(max(position.week, weeks.lowerBound), weeks.upperBound) - weeks.lowerBound) / Double(weeks.count - 1)
         }
         let top = range.lowerBound + (range.upperBound - range.lowerBound) * frac
-        let interval = phase == .test ? twoLiftInterval : singleLiftInterval
+        let interval = singleLiftInterval
         return StrengthPrescription(lift: lift, phase: phase, setReps: setReps, topRange: range,
                                     topFraction: top, flat: flat, intervalSec: interval)
     }
