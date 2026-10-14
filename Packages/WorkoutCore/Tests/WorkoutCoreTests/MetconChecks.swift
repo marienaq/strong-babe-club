@@ -80,6 +80,9 @@ enum MetconChecks {
                 out.append("\(tag): \(m.name) has no fixed reps")
             }
         }
+        if s.format == .forTime && ms.filter({ PaceModel.forTimeMultiplier(secondsPerRep: $0.secondsPerRep) > 1 }).count > 1 {
+            out.append("\(tag): two counting moves in a for time")
+        }
         // MC-26 ordering
         let tech = ms.map { $0.technical || $0.isBarbellLift }
         if let firstNonTech = tech.firstIndex(of: false), tech[firstNonTech...].contains(true) { out.append("\(tag): technical move not first") }

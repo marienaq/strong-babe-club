@@ -275,7 +275,7 @@ extension RulesWorkoutPlanner {
         let pos = ctx.position
         let lift = setup.dayLift.displayName
         if day.justShowUp { return "showing up is the win, so it's the shortest version" }
-        if day.comeback { return "you're getting back into it, so it stays middle-length" }
+        if day.comeback { return "you're getting back into it, so it isn't a long one" }
         if pos.isTestWeek { return "test week: a short piece after your heavy lift" }
         if day.plan.lightDay == .short { return "the last day of the week is a lighter one" }
         if pos.phase == .peak && day.plan.isHeaviest { return "\(lift) is your heaviest lift this week, and peak weeks keep metcons short" }

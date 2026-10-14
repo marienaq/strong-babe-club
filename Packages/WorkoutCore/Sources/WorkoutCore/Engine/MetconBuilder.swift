@@ -144,7 +144,7 @@ extension RulesWorkoutPlanner {
         if m.isBodyweightPattern(of: setup.daySlot) { w *= 0.3 }
         if m.highImpact { w *= 0.7 }
         if slot == .arms && !setup.isPullDay { w *= m.armKind == .push ? 3 : 1 }
-        if staples.contains(m.id) { w *= 2 } else if fallbacks.contains(m.id) { w *= 0.5 }
+        if staples.contains(m.id) { w *= 2 } else if fallbacks.contains(m.id) { w *= 0.3 }
         return w
     }
 
@@ -361,6 +361,8 @@ extension RulesWorkoutPlanner {
             }
         case .forTime:
             // Step 9: a scheme whose expected finish is 12-20 min and whose cap fits the day.
+            // One fast "counting" move (2-3× the scheme) at most, like the coach's.
+            guard ordered.filter({ PaceModel.forTimeMultiplier(secondsPerRep: $0.move.secondsPerRep) > 1 }).count <= 1 else { return nil }
             let shapes = MetconCatalog.shapes(.forTime)
             var remaining = shapes
             var found: (MetconShape, Double, Int)?
