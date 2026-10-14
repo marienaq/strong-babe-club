@@ -174,7 +174,8 @@ Every workout has four sections, each with an instruction and a place for my not
      - 5 × 7 going up.
      - Every 3 min when there are two lifts.
    - Reps are pre-filled. **I only enter the weight for each set.**
-3. **Metabolic conditioning:** formats are interval (work/rest), AMRAP with rest, descending ladder for time, Tabata and EMOM.
+3. **Metabolic conditioning ("metcon"):** formats are AMRAP, AMRAP with rest, stations, interval (work/rest circuits), for time, Tabata (40/20, one move at a time) and EMOM.
+   - Every metcon has **3–5 moves** and lasts **12–24 minutes** (metcon v2, see `docs/specs/metcon-v2.md`).
    - It has its own **start/stop timer** that handles work and rest.
    - I log reps or rounds+reps for each round, or my time, so repeats can be compared.
    - Name format: `structure-rounds-time-word`, e.g. `amrap-5-4-fungi`.
@@ -210,11 +211,11 @@ Rule-based and running on the phone, so it works offline, costs nothing and can 
 4. **Building a workout:**
    - Pick the strength lift.
    - Build a warm-up that primes it.
-   - Pick a metabolic piece that doesn't overload the same muscles. Sometimes it's a repeat of an old one, so I can beat my score.
+   - Pick a metcon (metcon v2): one move for heart rate, one for legs, one for arms, sometimes core or agility. It never uses the day's lift or its pattern (light barbell lifts from other days are fine, at most one). Reps are sized from my own pace so a round matches the coach's usual rounds; the best of 12 candidates is kept by a "looks like the coach" score. Days in a week are about the same length; the heaviest lift's day gets the shortest piece, and about 1 week in 4 the last day is lighter. Sometimes it's a benchmark repeat, so I can beat my score.
    - Add core work for the cool-down.
 5. **Weights:**
    - Strength weights come from the quarterly block (see "Strength program").
-   - Metabolic weights snap to my dumbbells and kettlebells, and go up or down with my difficulty ratings.
+   - Metabolic weights start at the coach's usual loads, snap to my dumbbells and kettlebells, and only move with a reason (ratings, deload, coming back from a break). Reps per round follow my ratings and recent scores, within limits.
    - Plateau → the next block starts from a reset TM instead of grinding on.
 6. **Limits I can set:**
    - Avoid jumping.
@@ -241,6 +242,8 @@ Rule-based and running on the phone, so it works offline, costs nothing and can 
   - Progress gets a "Benchmarks" view: one row per benchmark showing its score each quarter.
   - Beating a score counts as a PR.
 - **Limits:** if a limit rules out a benchmark move (e.g. no jumping), the move is substituted and the score is marked "modified", so it isn't compared like for like.
+- **Clashes:** a benchmark never runs on a day whose lift it loads (Back Squats in a benchmark wait for the next non-squat day, and "Why this?" says so).
+- **Rules:** a benchmark that breaks the metcon rules (not 3–5 moves, not 12–24 min) is retired, never changed; its old scores stay, and a replacement from history takes its slot (can be turned off).
 
 ## Data model (on the phone, sync-ready)
 

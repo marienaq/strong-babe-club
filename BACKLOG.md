@@ -54,7 +54,18 @@ Features a stranger needs on day one:
   - Localization string catalogs.
   - App Store items (privacy policy, store screenshots, support contact).
 
+## 6. Strength options from the metcon v2.1 analysis (needs decision)
+Optional strength changes listed in `docs/specs/metcon-v2.md` §21 (S1–S5: rep ranges in the volume phase, lift frequency, comeback ramp for strength, planned long breaks). Strength programming is unchanged until the owner decides.
+
 ## Done
+- **Round 7 (metcon v2):**
+  - Every metcon has 3–5 moves and lasts 12–24 min; heart, legs and arms are always covered; never the day's lift or its pattern.
+  - Formats: AMRAP, AMRAP with rest, stations, intervals (full circuits), for time, Tabata 40/20 one move at a time, EMOM.
+  - Days in a week are about the same length; the heaviest lift's day is the shortest; about 1 week in 4 the last day is lighter.
+  - Light barbell lifts in metcons (50–55% of the training max, at most one, never the day's lift).
+  - Reps sized from the athlete's pace; best of 12 candidates by a "looks like the coach" score; learns pace and density from scores and ratings.
+  - Benchmarks wait for a compatible day, test weeks catch up missed ones, rule-breaking ones are retired and replaced.
+  - Untouched v1 plans are re-planned on first launch; stored data migrates with no loss.
 - **Round 6 (programming):**
   - One main lift per session, plus a light accessory.
   - The test week is replaced by training maxes from history: 90% of the best e1RM over the last 28 days, with related lifts used for "calibrating" lifts.
