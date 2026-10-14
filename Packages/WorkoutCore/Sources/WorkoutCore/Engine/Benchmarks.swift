@@ -20,25 +20,37 @@ public struct BenchmarkScheduler: Sendable {
         }
     }
 
-    /// The benchmark to run on `date`, if any.
-    public func due(on date: LocalDate, benchmarks: [Benchmark], history: [PlannedWorkout]) -> Benchmark? {
+    /// Benchmarks due on `date` (active, valid, slot week reached, not done
+    /// this block), in slot order. At most one per calendar week, except in
+    /// the test weeks, which catch up anything missed.
+    public func dueList(on date: LocalDate, benchmarks: [Benchmark], history: [PlannedWorkout],
+                        library: MovementLibrary = .standard, lifts: [Lift] = Lift.allCases) -> [Benchmark] {
         let pos = calendar.position(on: date)
-        guard pos.block >= 1 else { return nil }
+        guard pos.block >= 1 else { return [] }
         let past = history.filter { $0.date < date }
-        // At most one benchmark per calendar week (week 13 excepted).
         if !pos.isTestWeek {
             let weekStart = date.startOfWeek
             let ranThisWeek = past.contains { w in
                 w.date >= weekStart && w.status == .done && w.sections.contains { $0.benchmarkID != nil }
             }
-            if ranThisWeek { return nil }
+            if ranThisWeek { return [] }
         }
         return benchmarks
-            .filter { $0.active }
+            .filter { $0.active && BenchmarkValidator.isValid($0, library: library, lifts: lifts) }
             .filter { BenchmarkScheduler.dueWeek(forSlot: $0.quarterSlot) <= pos.week }
             .filter { !isDone($0, inBlock: pos.block, history: past) }
             .sorted { ($0.quarterSlot, $0.name) < ($1.quarterSlot, $1.name) }
-            .first
+    }
+
+    /// The benchmark to run on `date`, if any. With a day's lift, only a
+    /// benchmark with no move of that lift's pattern runs (the first
+    /// compatible day runs it).
+    public func due(on date: LocalDate, benchmarks: [Benchmark], history: [PlannedWorkout], dayLift: Lift? = nil,
+                    settings: PlannerSettings = .default, library: MovementLibrary = .standard) -> Benchmark? {
+        dueList(on: date, benchmarks: benchmarks, history: history, library: library, lifts: settings.lifts).first { b in
+            guard let dayLift else { return true }
+            return BenchmarkValidator.clash(b.template, dayLift: dayLift, settings: settings, library: library) == nil
+        }
     }
 
     /// Copies a benchmark exactly. Moves that the limits/equipment rule out are
@@ -73,19 +85,48 @@ public struct BenchmarkScheduler: Sendable {
             return it
         }
         s.isModified = !subs.isEmpty
+        s.stimulus = s.stimulus ?? MetconStimulus(format: s.format)
+        // Expected rounds let a benchmark teach the pace model too.
+        if s.expectedScore == nil, s.format == .amrap || s.format == .amrapWithRest,
+           s.items.allSatisfy({ $0.reps != nil && library.movement(for: $0) != nil }) {
+            s.expectedScore = PaceModel.neutral.expectedRounds(s, library: library)
+        }
         return (s, subs)
     }
 }
 
 /// Proposes ~6 benchmarks from history: the metabolic pieces done most often
-/// with logged scores, mixing formats (max 2 per format).
+/// with logged scores, mixing formats (max 2 per format). Pieces that break
+/// the metcon rules (spec §11.1) are skipped.
 public enum BenchmarkProposer {
-    public static func propose(from history: [PlannedWorkout], count: Int = 6) -> [Benchmark] {
+    public static func propose(from history: [PlannedWorkout], count: Int = 6, library: MovementLibrary = .standard,
+                               settings: PlannerSettings = .default) -> [Benchmark] {
+        var perFormat: [SectionFormat: Int] = [:]
+        var out: [Benchmark] = []
+        for b in ranked(from: history, library: library, settings: settings) where out.count < count {
+            let f = b.template.format
+            guard perFormat[f, default: 0] < 2 else { continue }
+            perFormat[f, default: 0] += 1
+            var b = b
+            b.quarterSlot = out.count
+            out.append(b)
+        }
+        return out
+    }
+
+    /// Same pieces = same format and the same moves.
+    static func key(_ s: WorkoutSection) -> String {
+        s.format.rawValue + "|" + s.items.map(\.movementID).sorted().joined(separator: ",")
+    }
+
+    /// Every valid candidate from history, best first, each with a unique name.
+    public static func ranked(from history: [PlannedWorkout], library: MovementLibrary = .standard,
+                              settings: PlannerSettings = .default) -> [Benchmark] {
         struct Group { var section: WorkoutSection; var times: Int; var scored: Int; var last: LocalDate }
         var groups: [String: Group] = [:]
         for w in history where w.status == .done {
-            guard let s = w.metabolicSection, !s.items.isEmpty, s.format != .other else { continue }
-            let key = s.format.rawValue + "|" + s.items.map(\.movementID).sorted().joined(separator: ",")
+            guard let s = w.metabolicSection, !s.items.isEmpty, s.format != .other, s.benchmarkID == nil else { continue }
+            let key = key(s)
             let scored = MetabolicScore.from(s.roundLogs, format: s.format) != nil ? 1 : 0
             if var g = groups[key] {
                 g.times += 1
@@ -99,20 +140,18 @@ public enum BenchmarkProposer {
         let ranked = groups.sorted {
             ($0.value.scored, $0.value.times, $0.value.last, $0.key) > ($1.value.scored, $1.value.times, $1.value.last, $1.key)
         }
-        var perFormat: [SectionFormat: Int] = [:]
         var out: [Benchmark] = []
         var rng = SeededRandom(seed: 0xBE7C)
         var used: Set<String> = []
-        for (_, g) in ranked where out.count < count {
-            let f = g.section.format
-            guard perFormat[f, default: 0] < 2 else { continue }
-            perFormat[f, default: 0] += 1
+        for (_, g) in ranked {
+            guard BenchmarkValidator.intrinsicIssues(g.section, library: library, lifts: settings.lifts).isEmpty else { continue }
             var template = g.section
             template.roundLogs = []
             template.athleteNote = ""
+            template.expectedScore = nil
             template.items = template.items.map { var i = $0; i.setLogs = []; return i }
             let minutes = template.format == .amrapWithRest ? max(1, (template.workSec ?? 240) / 60) : WorkoutDuration.estimate(template)
-            let name = template.name.flatMap { WorkoutNamer.isValid($0) ? $0 : nil }
+            let name = template.name.flatMap { WorkoutNamer.isValid($0) && !used.contains($0) ? $0 : nil }
                 ?? WorkoutNamer.name(format: template.format, rounds: template.rounds ?? 1, minutes: minutes, using: &rng, avoiding: used)
             used.insert(name)
             template.name = name

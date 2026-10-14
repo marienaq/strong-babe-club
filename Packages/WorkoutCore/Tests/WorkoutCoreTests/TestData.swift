@@ -63,9 +63,11 @@ enum TestData {
                        roundLogs: rounds.enumerated().map { RoundLog(roundNumber: $0.offset + 1, rounds: $0.element.0, reps: $0.element.1) })
     }
 
+    /// A valid benchmark (3 moves, 5 × 4-min AMRAP): KB swings, push-ups, up/downs.
     static func benchmark(slot: Int, name: String = "amrap-5-4-fungi") -> Benchmark {
         let id = UUID()
         var t = amrapSection(benchmarkID: id, rounds: [])
+        t.items.append(SectionItem(letter: "C", movementID: "up-down", movementName: "Up/Downs", reps: 4))
         t.name = name
         return Benchmark(id: id, name: name, template: t, quarterSlot: slot)
     }

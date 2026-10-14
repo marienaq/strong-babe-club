@@ -15,25 +15,84 @@ extension RulesWorkoutPlanner {
 
     func buildMetabolic(_ ctx: inout Context, warmup: WorkoutSection, strength: WorkoutSection) throws -> WorkoutSection {
         var rng = ctx.rng(.metabolic)
-        let scheduler = BenchmarkScheduler(calendar: ctx.calendar)
-        if !ctx.position.isTestWeek, let due = scheduler.due(on: ctx.request.date, benchmarks: ctx.request.benchmarks, history: ctx.history) {
-            if ctx.request.salts.metabolic == 0 {
-                let (section, subs) = scheduler.instantiate(due, settings: ctx.settings, library: ctx.library, using: &rng)
-                if let prev = PRDetector.previousBenchmarkResult(due.id, before: ctx.request.date, history: ctx.history, calendar: ctx.calendar) {
-                    ctx.reason(.metabolic, "metabolic.benchmark",
-                               "Your quarterly repeat. Last done in \(prev.date.longMonthName). Try to beat \(prev.score)!")
-                } else {
-                    ctx.reason(.metabolic, "metabolic.benchmark", "A quarterly benchmark: same moves, weights and timing every quarter. Set the score to beat!")
-                }
-                if !subs.isEmpty {
-                    ctx.reason(.metabolic, "benchmark.modified",
-                               "Swapped for your limits (\(subs.joined(separator: ", "))), so this score is marked \"modified\".")
-                }
-                return section
-            }
-            ctx.reason(.metabolic, "benchmark.deferred", "Shuffled: \(due.name) moves to your next metabolic day.")
-        }
+        if let section = benchmarkSection(&ctx, rng: &rng) { return section }
         return try buildRemixSection(&ctx, warmup: warmup, strength: strength, rng: &rng)
+    }
+
+    static func weekdayName(_ d: LocalDate) -> String { d.weekday.rawValue.capitalized }
+
+    /// Step 1 (spec §11.4): a due benchmark runs, exactly as stored, on the
+    /// first day whose lift it doesn't clash with. Test weeks catch up any
+    /// that were missed. "Just show up" days and shuffles defer it.
+    func benchmarkSection(_ ctx: inout Context, rng: inout SeededRandom) -> WorkoutSection? {
+        let date = ctx.request.date
+        let scheduler = BenchmarkScheduler(calendar: ctx.calendar)
+        let due = scheduler.dueList(on: date, benchmarks: ctx.request.benchmarks, history: ctx.history,
+                                    library: ctx.library, lifts: ctx.settings.lifts)
+        guard !due.isEmpty else { return nil }
+        let lift = ctx.lifts.first ?? ctx.rotation.lift(for: date)
+        let settings = ctx.settings, library = ctx.library
+        let fits = due.filter { BenchmarkValidator.clash($0.template, dayLift: lift, settings: settings, library: library) == nil }
+
+        if ctx.coachNote.makesPlanShorter, let b = fits.first {
+            ctx.reason(.metabolic, "benchmark.deferred", "Showing up is the win today, so \(b.name) moves to your next metcon day.")
+            return nil
+        }
+        if ctx.request.salts.metabolic > 0, let b = fits.first {
+            ctx.reason(.metabolic, "benchmark.deferred", "Shuffled: \(b.name) moves to your next metabolic day.")
+            return nil
+        }
+        guard let b = fits.first else {
+            couldNotFit(&ctx, due)
+            return nil
+        }
+        let (section, subs) = BenchmarkScheduler(calendar: ctx.calendar).instantiate(b, settings: ctx.settings, library: ctx.library, using: &rng)
+        if let prev = PRDetector.previousBenchmarkResult(b.id, before: date, history: ctx.history, calendar: ctx.calendar) {
+            ctx.reason(.metabolic, "metabolic.benchmark",
+                       "Your quarterly repeat. Last done in \(prev.date.longMonthName). Try to beat \(prev.score)!")
+        } else {
+            ctx.reason(.metabolic, "metabolic.benchmark", "A quarterly benchmark: same moves, weights and timing every quarter. Set the score to beat!")
+        }
+        if let (day, move, dayLift) = earlierClash(ctx, b) {
+            ctx.reason(.metabolic, "benchmark.rescheduled",
+                       "\(b.name) was due \(Self.weekdayName(day)) but has \(move.name), and that's \(dayLift.displayName) day. It moved here so it doesn't clash.")
+        }
+        if !subs.isEmpty {
+            ctx.reason(.metabolic, "benchmark.modified",
+                       "Swapped for your limits (\(subs.joined(separator: ", "))), so this score is marked \"modified\".")
+        }
+        return section
+    }
+
+    /// The first earlier scheduled day this week the benchmark was due but clashed.
+    func earlierClash(_ ctx: Context, _ b: Benchmark) -> (LocalDate, Movement, Lift)? {
+        let date = ctx.request.date
+        let pos = ctx.position
+        let dueFrom = pos.isTestWeek ? date.startOfWeek : ctx.calendar.startOfWeek(block: pos.block, week: BenchmarkScheduler.dueWeek(forSlot: b.quarterSlot))
+        var d = max(date.startOfWeek, dueFrom)
+        while d < date {
+            if ctx.rotation.isScheduled(d) {
+                let lift = ctx.history.last { $0.date == d }?.mainLift ?? ctx.rotation.lift(for: d)
+                if let m = BenchmarkValidator.clash(b.template, dayLift: lift, settings: ctx.settings, library: ctx.library) {
+                    return (d, m, lift)
+                }
+            }
+            d = d.adding(days: 1)
+        }
+        return nil
+    }
+
+    /// On the block's last scheduled day, says which benchmarks couldn't fit.
+    func couldNotFit(_ ctx: inout Context, _ due: [Benchmark]) {
+        let pos = ctx.position
+        let date = ctx.request.date
+        guard pos.isTestWeek, pos.week == 14 else { return }
+        var d = date.adding(days: 1)
+        while d <= date.startOfWeek.adding(days: 6) {
+            if ctx.rotation.isScheduled(d) { return }
+            d = d.adding(days: 1)
+        }
+        for b in due { ctx.reason(.metabolic, "benchmark.skipped", "\(b.name) couldn't fit this quarter.") }
     }
 
     /// The day's plan when the date isn't a scheduled day (a moved workout):

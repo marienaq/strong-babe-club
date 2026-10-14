@@ -171,12 +171,15 @@ public struct PlannerSettings: Codable, Hashable, Sendable {
     public var lifts: [Lift]
     /// Finished (or skipped) onboarding. Older saved settings count as onboarded.
     public var onboarded: Bool
+    /// A retired benchmark's quarter slot gets a new one from history (on by default).
+    public var autoReplaceRetiredBenchmarks: Bool
 
     public init(displayName: String = "", schedule: [Weekday] = [.monday, .wednesday, .friday],
                 equipment: EquipmentInventory = .homeGym, limits: TrainingLimits = TrainingLimits(),
                 targetMinutes: Int = 50, rotationAnchor: LocalDate = LocalDate(2026, 9, 28),
                 testWeekStart: LocalDate = LocalDate(2026, 10, 12), deloadWeeks: [LocalDate] = [],
-                breaks: [TrainingBreak] = [], lifts: [Lift] = Lift.allCases, onboarded: Bool = false, initialTestWeeks: Int = 0) {
+                breaks: [TrainingBreak] = [], lifts: [Lift] = Lift.allCases, onboarded: Bool = false, initialTestWeeks: Int = 0,
+                autoReplaceRetiredBenchmarks: Bool = true) {
         self.displayName = displayName
         self.schedule = schedule
         self.equipment = equipment
@@ -189,10 +192,12 @@ public struct PlannerSettings: Codable, Hashable, Sendable {
         self.lifts = lifts
         self.onboarded = onboarded
         self.initialTestWeeks = initialTestWeeks
+        self.autoReplaceRetiredBenchmarks = autoReplaceRetiredBenchmarks
     }
 
     enum CodingKeys: String, CodingKey {
         case displayName, schedule, equipment, limits, targetMinutes, rotationAnchor, testWeekStart, deloadWeeks, breaks, lifts, onboarded, initialTestWeeks
+        case autoReplaceRetiredBenchmarks
     }
 
     /// Tolerant: settings saved by older versions (no `breaks`, ...) still load.
@@ -213,6 +218,7 @@ public struct PlannerSettings: Codable, Hashable, Sendable {
         // Older settings had a one-week test before block 1; that test week is
         // dropped: their block 1 starts on the saved date.
         initialTestWeeks = try c.decodeIfPresent(Int.self, forKey: .initialTestWeeks) ?? 0
+        autoReplaceRetiredBenchmarks = try c.decodeIfPresent(Bool.self, forKey: .autoReplaceRetiredBenchmarks) ?? true
     }
 
     public static let `default` = PlannerSettings()

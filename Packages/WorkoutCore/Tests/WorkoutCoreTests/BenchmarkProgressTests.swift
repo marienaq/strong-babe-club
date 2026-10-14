@@ -96,14 +96,32 @@ final class BenchmarkSchedulerTests: XCTestCase {
         XCTAssertTrue(text.contains("25 + 16"), text)
     }
 
+    /// A valid (3-move, 12-24 min) synthetic piece of each format.
+    static func validPiece(_ f: SectionFormat, _ i: Int) -> WorkoutSection {
+        let lib = MovementLibrary.standard
+        let legs = ["air-squat", "lunge", "goblet-squat", "kb-swing", "bench-step-up", "glute-bridge", "db-front-squat", "db-deadlift"]
+        let arms = ["push-up", "db-bench-press", "db-push-press", "australian-pull-up", "db-floor-press", "db-row", "tricep-dip", "db-curl-press"]
+        let items = [legs[i % 8], arms[i % 8], "up-down"].enumerated().map { j, id in
+            SectionItem(letter: ["A", "B", "C"][j], movementID: id, movementName: lib[id]!.name, reps: 5)
+        }
+        var s = WorkoutSection(kind: .metabolic, format: f, instructions: "", items: items,
+                               roundLogs: [RoundLog(roundNumber: 1, rounds: 3, reps: 2)])
+        switch f {
+        case .amrapWithRest: s.rounds = 4; s.workSec = 180; s.restSec = 60
+        case .interval: s.rounds = 5; s.workSec = 40; s.restSec = 20
+        case .tabata: s.rounds = 5; s.workSec = 40; s.restSec = 20; s.roundRestSec = 0
+        case .emom: s.durationMin = 15; s.intervalSec = 60
+        default: s.durationMin = 15
+        }
+        return s
+    }
+
     func testProposerPicksMixedFormats() {
         var history: [PlannedWorkout] = []
         let formats: [SectionFormat] = [.amrapWithRest, .amrapWithRest, .amrapWithRest, .forTime, .interval, .amrap, .emom, .tabata]
         for (i, f) in formats.enumerated() {
             for rep in 0..<(8 - i) {
-                let s = WorkoutSection(kind: .metabolic, format: f, instructions: "", rounds: 4, workSec: 180, restSec: 60,
-                                       items: [SectionItem(letter: "A", movementID: "move-\(i)", movementName: "Move \(i)", reps: 5)],
-                                       roundLogs: [RoundLog(roundNumber: 1, rounds: 3, reps: 2)])
+                let s = Self.validPiece(f, i)
                 history.append(PlannedWorkout(date: LocalDate(2025, 1, 1).adding(days: i * 30 + rep), status: .done, sections: [s]))
             }
         }
