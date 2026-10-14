@@ -155,10 +155,13 @@ extension RulesWorkoutPlanner {
         var allowed = plan.allowedFormats.filter { MetconCatalog.hasShape($0, in: window) }
         if pos.phase == .peak && plan.isHeaviest { allowed.removeAll { $0 == .forTime } }
         var format = plan.format
-        if ctx.request.salts.metabolic > 0 || !allowed.contains(format) {
-            // Prefer a different format from today's plan and the other days'.
+        let shuffled = ctx.request.salts.metabolic > 0
+        if shuffled || !allowed.contains(format) {
+            // A shuffle prefers a format different from today's plan and the
+            // other days' (any format can still come up); a re-pick keeps
+            // the week free of repeats when it can.
             let fresh = allowed.filter { !plan.otherFormats.contains($0) }
-            format = (fresh.isEmpty ? allowed : fresh).weightedPick(using: &rng) { f in
+            format = (shuffled || fresh.isEmpty ? allowed : fresh).weightedPick(using: &rng) { f in
                 (MetconCatalog.formatWeights[f] ?? 1) * (f == plan.format && ctx.request.salts.metabolic > 0 ? 0.2 : 1)
                     * (plan.otherFormats.contains(f) ? 0.4 : 1)
             } ?? .amrap
