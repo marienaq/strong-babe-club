@@ -104,15 +104,34 @@ final class RoundTwoUITests: XCTestCase {
         XCTAssertFalse(empty.waitForExistence(timeout: 2), "chart now has the app-logged front squat")
     }
 
-    /// Tabata: one log row per prescribed round (8 per move x 2 moves = 16).
-    func testTabataHasSixteenLogRows() {
+    /// Tabata 40/20, one move at a time: one log row per round of each move
+    /// (3-5 moves × 4-7 rounds), matching the timer.
+    func testTabataHasOneLogRowPerRoundOfEachMove() throws {
         let app = launch(["-sbc-open", "session", "-sbc-section", "metabolic", "-sbc-metabolic", "tabata"])
         XCTAssertTrue(app.staticTexts["roundOfTotal"].waitForExistence(timeout: 15))
-        XCTAssertEqual(app.staticTexts["roundOfTotal"].label, "round 1 of 16")
-        let last = app.descendants(matching: .any)["logRow-16"]
-        for _ in 0..<8 where !last.exists { app.swipeUp() }
+        let label = app.staticTexts["roundOfTotal"].label
+        XCTAssertTrue(label.hasPrefix("round 1 of "), label)
+        let total = try XCTUnwrap(Int(label.replacingOccurrences(of: "round 1 of ", with: "")))
+        XCTAssertTrue((15...24).contains(total), label)
+        XCTAssertTrue(app.staticTexts["metconFeel"].label.hasPrefix("intervals ·"))
+        let last = app.descendants(matching: .any)["logRow-\(total)"]
+        for _ in 0..<12 where !last.exists { app.swipeUp() }
         XCTAssertTrue(last.exists)
-        XCTAssertFalse(app.descendants(matching: .any)["logRow-17"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["logRow-\(total + 1)"].exists)
+    }
+
+    /// Stations: one log row per round; the timer counts rounds, not stations.
+    func testStationsCountRounds() throws {
+        let app = launch(["-sbc-open", "session", "-sbc-section", "metabolic", "-sbc-metabolic", "stations"])
+        XCTAssertTrue(app.staticTexts["roundOfTotal"].waitForExistence(timeout: 15))
+        let label = app.staticTexts["roundOfTotal"].label
+        let total = try XCTUnwrap(Int(label.replacingOccurrences(of: "round 1 of ", with: "")))
+        XCTAssertTrue((3...6).contains(total), label)
+        XCTAssertTrue(app.staticTexts["metconFeel"].label.hasPrefix("repeat efforts ·"))
+        let last = app.descendants(matching: .any)["logRow-\(total)"]
+        for _ in 0..<6 where !last.exists { app.swipeUp() }
+        XCTAssertTrue(last.exists)
+        XCTAssertFalse(app.descendants(matching: .any)["logRow-\(total + 1)"].exists)
     }
 
     /// Range chips and the year toggle switch the chart and remember nothing
