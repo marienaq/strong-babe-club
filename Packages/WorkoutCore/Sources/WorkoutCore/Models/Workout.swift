@@ -39,8 +39,10 @@ public enum SectionFormat: String, Codable, Sendable, CaseIterable {
     case setsGoingUp = "sets_going_up"
     /// e.g. 10-8-6-4-2
     case ladder
-    /// Work / rest intervals.
+    /// Work / rest intervals: each round is a full circuit of the moves.
     case interval
+    /// Timed stations back to back (60 s each), rest after each full round.
+    case stations
     /// One AMRAP.
     case amrap
     /// Several AMRAPs with rest between ("amrap-5-4-...").
@@ -59,6 +61,7 @@ public enum SectionFormat: String, Codable, Sendable, CaseIterable {
         case .amrap, .amrapWithRest: return "amrap"
         case .forTime, .ladder: return "fortime"
         case .interval: return "interval"
+        case .stations: return "stations"
         case .tabata: return "tabata"
         case .emom, .everyNMin: return "emom"
         default: return rawValue
