@@ -40,16 +40,58 @@ public struct IntervalPlan: Hashable, Sendable {
         return IntervalPlan(phases: p)
     }
 
-    /// Builds the right timer for a section.
+    /// Builds the right timer for a section. Its total always equals
+    /// `WorkoutDuration.estimateSeconds` for metcons.
     public static func forSection(_ s: WorkoutSection) -> IntervalPlan? {
+        let n = max(1, s.items.count)
+        let r = max(1, s.rounds ?? 1)
         switch s.format {
-        case .everyNMin, .emom:
-            let sets = s.format == .emom ? s.prescribedRounds : (s.items.map(\.plannedSets.count).max() ?? s.rounds ?? 6)
+        case .everyNMin:
+            let sets = s.items.map(\.plannedSets.count).max() ?? s.rounds ?? 6
             return .everyInterval(seconds: s.intervalSec ?? 120, sets: sets)
+        case .emom:
+            return .everyInterval(seconds: s.intervalSec ?? 60, sets: s.prescribedRounds)
         case .tabata:
-            return .workRest(rounds: s.prescribedRounds, work: s.workSec ?? 20, rest: s.restSec ?? 10)
-        case .amrapWithRest, .interval:
-            return .workRest(rounds: s.prescribedRounds, work: s.workSec ?? 60, rest: s.restSec ?? 0)
+            // One move at a time: R × (work, rest), then the next move. The
+            // rest between moves is `roundRestSec` (0 = the normal rest).
+            let w = s.workSec ?? 40, x = s.restSec ?? 20
+            let between = (s.roundRestSec ?? 0) > 0 ? s.roundRestSec! : x
+            var p: [TimerPhase] = []
+            var round = 0
+            for move in 0..<n {
+                for k in 0..<r {
+                    round += 1
+                    p.append(TimerPhase(kind: .work, duration: max(1, w), round: round))
+                    let last = move == n - 1 && k == r - 1
+                    if !last { p.append(TimerPhase(kind: .rest, duration: k == r - 1 ? between : x, round: round)) }
+                }
+            }
+            return IntervalPlan(phases: p)
+        case .stations:
+            // Each move is a station, back to back; rest after each full round.
+            let w = s.workSec ?? 60, x = s.restSec ?? 0
+            var p: [TimerPhase] = []
+            for round in 1...r {
+                for station in 0..<n {
+                    p.append(TimerPhase(kind: .work, duration: max(1, w), round: round))
+                    if station < n - 1 && x > 0 { p.append(TimerPhase(kind: .rest, duration: x, round: round)) }
+                }
+                if round < r { p.append(TimerPhase(kind: .rest, duration: s.roundRestSec ?? 60, round: round)) }
+            }
+            return IntervalPlan(phases: p)
+        case .interval:
+            // Each round is a full circuit: work then rest on every move, in order.
+            let w = s.workSec ?? 40, x = s.restSec ?? 0
+            var p: [TimerPhase] = []
+            for round in 1...r {
+                for move in 0..<n {
+                    p.append(TimerPhase(kind: .work, duration: max(1, w), round: round))
+                    if !(round == r && move == n - 1) && x > 0 { p.append(TimerPhase(kind: .rest, duration: x, round: round)) }
+                }
+            }
+            return IntervalPlan(phases: p)
+        case .amrapWithRest:
+            return .workRest(rounds: s.prescribedRounds, work: s.workSec ?? (s.durationMin ?? 4) * 60, rest: s.restSec ?? 0)
         case .amrap, .forTime:
             return .workRest(rounds: 1, work: (s.durationMin ?? 12) * 60, rest: 0)
         default:

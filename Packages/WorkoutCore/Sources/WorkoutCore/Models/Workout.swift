@@ -197,11 +197,20 @@ public struct WorkoutSection: Codable, Hashable, Sendable, Identifiable {
     public var athleteNote: String
     public var items: [SectionItem]
     public var roundLogs: [RoundLog]
+    /// Stations: rest after each full round. Tabata: rest between moves
+    /// (0 = the normal 20 s rest is the change-over). Nil in older data.
+    public var roundRestSec: Int?
+    /// The intended feel of a metcon. Nil in older data.
+    public var stimulus: MetconStimulus?
+    /// Expected rounds per window (AMRAPs) or finish seconds (for time).
+    /// Used to learn the athlete's pace. Nil in older data and timed formats.
+    public var expectedScore: Double?
 
     public init(id: UUID = UUID(), kind: SectionKind, format: SectionFormat, name: String? = nil, instructions: String,
                 rounds: Int? = nil, workSec: Int? = nil, restSec: Int? = nil, intervalSec: Int? = nil,
                 durationMin: Int? = nil, benchmarkID: UUID? = nil, isModified: Bool = false, lift: Lift? = nil,
-                trainingMax: Double? = nil, athleteNote: String = "", items: [SectionItem] = [], roundLogs: [RoundLog] = []) {
+                trainingMax: Double? = nil, athleteNote: String = "", items: [SectionItem] = [], roundLogs: [RoundLog] = [],
+                roundRestSec: Int? = nil, stimulus: MetconStimulus? = nil, expectedScore: Double? = nil) {
         self.id = id
         self.kind = kind
         self.format = format
@@ -219,6 +228,9 @@ public struct WorkoutSection: Codable, Hashable, Sendable, Identifiable {
         self.athleteNote = athleteNote
         self.items = items
         self.roundLogs = roundLogs
+        self.roundRestSec = roundRestSec
+        self.stimulus = stimulus
+        self.expectedScore = expectedScore
     }
 
     /// Strength: the main lift(s); `secondaryItems` are the light accessories.
@@ -235,13 +247,16 @@ public struct WorkoutSection: Codable, Hashable, Sendable, Identifiable {
     public var repsPerRound: Int { items.compactMap(\.reps).reduce(0, +) }
 
     /// Rounds the athlete logs, matching the prescription and the timer:
-    /// interval / AMRAP-with-rest rounds, Tabata rounds × moves, one row per
-    /// EMOM minute, one row per ladder rung, one row for a single AMRAP.
+    /// interval circuits / station rounds / AMRAP-with-rest blocks, Tabata
+    /// rounds × moves, one row per EMOM interval, one row per ladder rung,
+    /// one row for a single AMRAP.
     public var prescribedRounds: Int {
         switch format {
         case .tabata: return max(1, (rounds ?? 8) * max(1, items.count))
-        case .interval, .amrapWithRest: return max(1, rounds ?? 1)
-        case .emom: return max(1, durationMin ?? rounds ?? 1)
+        case .interval, .stations, .amrapWithRest: return max(1, rounds ?? 1)
+        case .emom:
+            guard let d = durationMin else { return max(1, rounds ?? 1) }
+            return max(1, d * 60 / max(1, intervalSec ?? 60))
         case .forTime, .ladder:
             let scheme = items.compactMap(\.repsScheme).first
             let rungs = scheme.map { $0.split(separator: "-").count } ?? 1
@@ -428,14 +443,24 @@ public struct Benchmark: Codable, Hashable, Sendable, Identifiable {
     public var active: Bool
     /// 0-based slot inside the 13-week block (slot n is due from week 1 + 2n).
     public var quarterSlot: Int
+    /// Set when the benchmark breaks the metcon rules ("Only 2 moves; ...").
+    /// Retired benchmarks are never scheduled; their template is never changed.
+    public var retiredReason: String?
+    /// Added automatically to replace this retired benchmark (shown as "new").
+    public var replacesID: UUID?
 
-    public init(id: UUID = UUID(), name: String, template: WorkoutSection, active: Bool = true, quarterSlot: Int) {
+    public init(id: UUID = UUID(), name: String, template: WorkoutSection, active: Bool = true, quarterSlot: Int,
+                retiredReason: String? = nil, replacesID: UUID? = nil) {
         self.id = id
         self.name = name
         self.template = template
         self.active = active
         self.quarterSlot = quarterSlot
+        self.retiredReason = retiredReason
+        self.replacesID = replacesID
     }
+
+    public var isRetired: Bool { retiredReason != nil }
 }
 
 public struct Goal: Codable, Hashable, Sendable, Identifiable {
@@ -452,8 +477,11 @@ public struct Goal: Codable, Hashable, Sendable, Identifiable {
     }
 }
 
-enum WorkoutDuration {
-    static func estimate(_ s: WorkoutSection) -> Int {
+/// Section length estimates. Metcons are estimated in seconds from their
+/// structure (spec §5.2); everything else in whole minutes.
+public enum WorkoutDuration {
+    /// Estimated minutes, rounded half up.
+    public static func estimate(_ s: WorkoutSection) -> Int {
         switch s.kind {
         case .warmup: return max(4, (s.rounds ?? 3) * 3)
         case .cooldown: return 6
@@ -465,11 +493,46 @@ enum WorkoutDuration {
             }
             return 14
         case .metabolic:
-            if let d = s.durationMin { return d }
-            let rounds = s.rounds ?? 1
-            let work = s.workSec ?? 0, rest = s.restSec ?? 0
-            if work > 0 { return max(1, Int((Double(rounds * (work + rest)) / 60).rounded())) }
-            return 12
+            return (estimateSeconds(s) + 30) / 60
         }
     }
+
+    /// Estimated seconds. No trailing rest is counted after the last work
+    /// period (the same as the timer).
+    public static func estimateSeconds(_ s: WorkoutSection) -> Int {
+        guard s.kind == .metabolic else { return estimate(s) * 60 }
+        let n = max(1, s.items.count)
+        let r = max(1, s.rounds ?? 1)
+        let x = max(0, s.restSec ?? 0)
+        switch s.format {
+        case .amrap, .forTime, .ladder:
+            return (s.durationMin ?? 12) * 60
+        case .emom, .everyNMin:
+            if let d = s.durationMin { return d * 60 }
+            return r * (s.intervalSec ?? 60)
+        case .amrapWithRest:
+            let w = s.workSec ?? (s.durationMin ?? 4) * 60
+            return r * w + (r - 1) * x
+        case .stations:
+            let w = s.workSec ?? 60
+            return r * (n * w + (n - 1) * x) + (r - 1) * (s.roundRestSec ?? 60)
+        case .interval:
+            let w = s.workSec ?? 40
+            return r * n * (w + x) - x
+        case .tabata:
+            // One move at a time: R rounds of work/rest, then the next move.
+            let w = s.workSec ?? 40
+            let between = (s.roundRestSec ?? 0) > 0 ? s.roundRestSec! : x
+            return n * r * w + n * (r - 1) * x + (n - 1) * between
+        default:
+            if let d = s.durationMin { return d * 60 }
+            let w = s.workSec ?? 0
+            return w > 0 ? r * (w + x) : 720
+        }
+    }
+}
+
+extension WorkoutSection {
+    /// Estimated length in seconds (metcons) or minutes × 60.
+    public var estimatedSeconds: Int { WorkoutDuration.estimateSeconds(self) }
 }

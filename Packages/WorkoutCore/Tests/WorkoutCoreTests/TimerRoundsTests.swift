@@ -21,9 +21,10 @@ final class PrescribedRoundsTests: XCTestCase {
     }
 
     func testIntervalAmrapWithRestAndEmom() {
+        // Interval rounds are full circuits: 6 rounds × 3 moves = 18 work periods.
         let interval = section(.interval, rounds: 6, work: 40, rest: 20, moves: 3)
         XCTAssertEqual(interval.prescribedRounds, 6)
-        XCTAssertEqual(workPhases(interval), 6)
+        XCTAssertEqual(workPhases(interval), 18)
         let amrap = section(.amrapWithRest, rounds: 5, work: 240, rest: 60, moves: 3)
         XCTAssertEqual(amrap.prescribedRounds, 5)
         XCTAssertEqual(workPhases(amrap), 5)
@@ -52,9 +53,13 @@ final class PrescribedRoundsTests: XCTestCase {
                 let m = try XCTUnwrap(w.metabolicSection)
                 seen.insert(m.format)
                 switch m.format {
-                case .interval, .tabata, .emom, .amrapWithRest:
+                case .tabata, .emom, .amrapWithRest:
                     XCTAssertEqual(m.prescribedRounds, workPhases(m), "\(m.format) on \(d)")
                     if m.format == .tabata { XCTAssertEqual(m.prescribedRounds, (m.rounds ?? 0) * m.items.count) }
+                case .interval, .stations:
+                    // One log row per round; the timer has a work period per move.
+                    XCTAssertEqual(m.prescribedRounds, m.rounds, "\(m.format) on \(d)")
+                    XCTAssertEqual(workPhases(m), (m.rounds ?? 0) * m.items.count, "\(m.format) on \(d)")
                 case .forTime:
                     XCTAssertEqual(m.prescribedRounds, m.items.first?.repsScheme?.split(separator: "-").count)
                 case .amrap:

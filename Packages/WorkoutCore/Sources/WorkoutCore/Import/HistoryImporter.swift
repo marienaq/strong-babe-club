@@ -173,7 +173,7 @@ public struct HistoryImporter: Sendable {
         case .metabolic:
             switch t {
             case "amrap": return (f?.rounds ?? 1) > 1 ? .amrapWithRest : .amrap
-            case "interval": return .interval
+            case "interval": return f?.perStation == true ? .stations : .interval
             case "for_time", "ladder": return .forTime
             case "every_n_min", "emom": return .emom
             case "tabata": return .tabata
@@ -195,11 +195,16 @@ public struct HistoryImporter: Sendable {
             id: UUID.seeded(&rng), kind: kind, format: format, instructions: instructions,
             rounds: sanitizer.rounds(s.format?.rounds ?? s.format?.sets, path + ".rounds"),
             workSec: sanitizer.seconds(s.format?.workSec ?? (format == .amrapWithRest ? duration.map { $0 * 60 } : nil), path + ".work"),
-            restSec: sanitizer.seconds(s.format?.restSec ?? s.format?.restBetweenRoundsSec, path + ".rest"),
+            restSec: format == .stations ? 0 : sanitizer.seconds(s.format?.restSec ?? s.format?.restBetweenRoundsSec, path + ".rest"),
             intervalSec: sanitizer.seconds(s.format?.intervalMin.map { $0 * 60 }, path + ".interval"),
             durationMin: format == .amrapWithRest ? nil : duration,
             lift: kind == .strength ? (s.items ?? []).first.flatMap { Lift(movementName: $0.movement ?? "") } : nil,
             athleteNote: (s.athleteNoteDuplicate ?? false) ? "" : (sanitizer.text(s.athleteNote) ?? ""))
+        if format == .stations {
+            // Stations: one move per station back to back, rest after each round.
+            section.roundRestSec = sanitizer.seconds(s.format?.restBetweenRoundsSec ?? s.format?.restSec, path + ".rest") ?? 60
+        }
+        section.stimulus = kind == .metabolic ? MetconStimulus(format: format) : nil
 
         let letters = ["A", "B", "C", "D", "E", "F", "G", "H"]
         section.items = (s.items ?? []).prefix(limits.maxItemsPerSection).enumerated().compactMap { ii, it in
@@ -332,9 +337,12 @@ struct FormatDTO: Decodable {
     let restBetweenRoundsSec: Int?
     let workSec: Int?
     let restSec: Int?
+    /// Interval pieces where each move is a timed station.
+    let perStation: Bool?
 
     enum CodingKeys: String, CodingKey {
         case type, rounds, sets
+        case perStation = "per_station"
         case intervalMin = "interval_min"
         case durationMin = "duration_min"
         case restBetweenRoundsSec = "rest_between_rounds_sec"
@@ -356,5 +364,29 @@ struct ItemDTO: Decodable {
         case repsScheme = "reps_scheme"
         case timeSec = "time_sec"
         case weightLb = "weight_lb"
+    }
+}
+
+// MARK: - Stored data migrations
+
+public enum SectionMigration {
+    /// Earlier imports stored station pieces ("4 rounds of 4 one-minute
+    /// stations, 1 min rest") as 60/60 intervals. They are stations: each
+    /// move is a 60 s station back to back, with 60 s rest after each round
+    /// (spec MC-11). Returns nil when nothing changes.
+    public static func migrate(_ w: PlannedWorkout) -> PlannedWorkout? {
+        guard w.source.hasPrefix("import") else { return nil }
+        var out = w
+        var changed = false
+        for i in out.sections.indices {
+            let s = out.sections[i]
+            guard s.kind == .metabolic, s.format == .interval, s.workSec == 60, s.restSec == 60 else { continue }
+            out.sections[i].format = .stations
+            out.sections[i].restSec = 0
+            out.sections[i].roundRestSec = 60
+            out.sections[i].stimulus = .repeat
+            changed = true
+        }
+        return changed ? out : nil
     }
 }

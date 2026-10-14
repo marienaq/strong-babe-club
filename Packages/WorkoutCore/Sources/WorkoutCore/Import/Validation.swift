@@ -122,6 +122,8 @@ struct Sanitizer {
             s.restSec = seconds(s.restSec, sp + ".restSec")
             s.intervalSec = seconds(s.intervalSec, sp + ".intervalSec")
             s.durationMin = s.durationMin.flatMap { (0...240).contains($0) ? $0 : nil }
+            s.roundRestSec = seconds(s.roundRestSec, sp + ".roundRestSec")
+            s.expectedScore = s.expectedScore.flatMap { $0.isFinite && (0...100_000).contains($0) ? $0 : nil }
             s.trainingMax = weight(s.trainingMax, sp + ".trainingMax")
             s.roundLogs = Array(s.roundLogs.prefix(limits.maxRoundsPerSection)).map { r0 in
                 var r = r0
