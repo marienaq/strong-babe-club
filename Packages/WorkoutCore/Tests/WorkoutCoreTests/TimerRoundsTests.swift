@@ -15,9 +15,12 @@ final class PrescribedRoundsTests: XCTestCase {
     }
 
     func testTabataIsRoundsTimesMoves() {
-        let s = section(.tabata, rounds: 8, work: 20, rest: 10, minutes: 8, moves: 2)
-        XCTAssertEqual(s.prescribedRounds, 16)
-        XCTAssertEqual(workPhases(s), 16)
+        // Tabata 40/20, one move at a time: 3 moves × 6 rounds = 18 log rows.
+        var s = section(.tabata, rounds: 6, work: 40, rest: 20, moves: 3)
+        s.roundRestSec = 0
+        XCTAssertEqual(s.prescribedRounds, 18)
+        XCTAssertEqual(workPhases(s), 18)
+        XCTAssertEqual(IntervalPlan.forSection(s)?.totalDuration, 3 * 6 * 60 - 20)
     }
 
     func testIntervalAmrapWithRestAndEmom() {
@@ -74,8 +77,11 @@ final class PrescribedRoundsTests: XCTestCase {
     }
 
     func testTabataInstructionsMatch() {
-        let t = FormatLibrary.metabolic.first { $0.format == .tabata }!
-        XCTAssertTrue(t.instructions.contains("per move"), t.instructions)
+        for shape in MetconCatalog.shapes(.tabata) {
+            let text = MetconCatalog.instructions(shape.section())
+            XCTAssertTrue(text.contains("40 s work / 20 s rest"), text)
+            XCTAssertTrue(text.contains("one move at a time"), text)
+        }
     }
 }
 

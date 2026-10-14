@@ -231,10 +231,13 @@ final class TimerTests: XCTestCase {
     }
 
     func testForSection() {
-        let tabata = WorkoutSection(kind: .metabolic, format: .tabata, instructions: "", rounds: 8, workSec: 20, restSec: 10,
+        // Tabata 40/20, one move at a time; the 20 s rest is the change-over.
+        let tabata = WorkoutSection(kind: .metabolic, format: .tabata, instructions: "", rounds: 5, workSec: 40, restSec: 20,
                                     items: [SectionItem(letter: "A", movementID: "a", movementName: "A"),
-                                            SectionItem(letter: "B", movementID: "b", movementName: "B")])
-        XCTAssertEqual(IntervalPlan.forSection(tabata)?.totalDuration, 16 * 20 + 15 * 10)
+                                            SectionItem(letter: "B", movementID: "b", movementName: "B"),
+                                            SectionItem(letter: "C", movementID: "c", movementName: "C")],
+                                    roundRestSec: 0)
+        XCTAssertEqual(IntervalPlan.forSection(tabata)?.totalDuration, 15 * 40 + 14 * 20)
         let amrap = WorkoutSection(kind: .metabolic, format: .amrap, instructions: "", durationMin: 12)
         XCTAssertEqual(IntervalPlan.forSection(amrap)?.totalDuration, 720)
         let strength = WorkoutSection(kind: .strength, format: .everyNMin, instructions: "", intervalSec: 120,

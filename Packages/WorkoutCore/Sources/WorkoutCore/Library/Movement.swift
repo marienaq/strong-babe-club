@@ -92,6 +92,7 @@ public struct MovementLibrary: Sendable {
     private let bySlug: [String: Movement]
     /// Coach-style names (as slugs) that map to a library id ("russian-kb-swing").
     public let aliases: [String: String]
+    private let lookups = LookupCache()
 
     public init(_ movements: [Movement] = MovementLibrary.seed, aliases: [String: String] = MovementLibrary.standardAliases) {
         self.movements = movements
@@ -152,6 +153,13 @@ public struct MovementLibrary: Sendable {
     /// Finds a library movement by display name (case-insensitive), slug,
     /// coach-style alias, or a plural/singular form of any of those.
     public func lookup(name: String) -> Movement? {
+        if let hit = lookups.get(name) { return hit.movement }
+        let found = findByName(name)
+        lookups.set(name, found)
+        return found
+    }
+
+    private func findByName(_ name: String) -> Movement? {
         let s = MovementLibrary.slug(name)
         var forms = [s]
         if s.hasSuffix("s") { forms.append(String(s.dropLast())) } else { forms.append(s + "s") }
@@ -188,6 +196,26 @@ public struct MovementLibrary: Sendable {
         "db-hang-power-clean-push-press": "db-hang-clean-push-press",
         "toe-tap": "toe-tap", "leg-raise": "leg-raise", "wall-walk": "wall-walk",
     ]
+}
+
+/// Remembers name lookups (history items are looked up over and over).
+private final class LookupCache: @unchecked Sendable {
+    struct Hit { var movement: Movement? }
+    private var hits: [String: Hit] = [:]
+    private let lock = NSLock()
+
+    func get(_ name: String) -> Hit? {
+        lock.lock()
+        defer { lock.unlock() }
+        return hits[name]
+    }
+
+    func set(_ name: String, _ m: Movement?) {
+        lock.lock()
+        defer { lock.unlock() }
+        if hits.count > 5000 { hits.removeAll() }
+        hits[name] = Hit(movement: m)
+    }
 }
 
 extension MovementLibrary {

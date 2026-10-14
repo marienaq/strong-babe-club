@@ -46,10 +46,26 @@ public protocol WorkoutPlanner: Sendable {
 
 public enum PlannerError: Error, Equatable {
     case noMovementsAvailable(SectionKind)
+    /// Equipment and limits leave fewer than 3 metcon moves.
+    case metconPoolTooSmall(available: Int)
+
+    /// What the app shows when planning fails.
+    public var userMessage: String {
+        switch self {
+        case .metconPoolTooSmall:
+            return "Your equipment and limits leave fewer than 3 metcon moves. Add equipment or relax a limit in Settings."
+        case .noMovementsAvailable(let kind):
+            return "Your equipment and limits leave no \(kind.displayName) moves. Add equipment or relax a limit in Settings."
+        }
+    }
 }
 
 public struct RulesWorkoutPlanner: WorkoutPlanner {
     public let library: MovementLibrary
+    /// Stored on planned workouts so v1 and v2 plans can be told apart.
+    public static let source = "rules-v2"
+    /// Plans the app may re-plan while untouched (older rules included).
+    public static let replannableSources: Set<String> = ["rules-v1", "rules-v2", "missed"]
 
     public init(library: MovementLibrary = .standard) { self.library = library }
 
@@ -95,7 +111,7 @@ public struct RulesWorkoutPlanner: WorkoutPlanner {
         // Strength lift first: everything else is built around it.
         let strength = buildStrength(&ctx)
         let warmup = try buildWarmup(&ctx)
-        let metabolic = try buildMetabolic(&ctx)
+        let metabolic = try buildMetabolic(&ctx, warmup: warmup, strength: strength)
         let cooldown = try buildCooldown(&ctx)
         var sections = [warmup, strength, metabolic, cooldown]
         fitLength(&sections, &ctx)
@@ -105,7 +121,7 @@ public struct RulesWorkoutPlanner: WorkoutPlanner {
         let workout = PlannedWorkout(id: id, date: r.date, status: .planned, sections: sections, reasons: ctx.reasons,
                                      coachNote: ctx.coachNote, salts: r.salts, position: ctx.position,
                                      durationMin: sections.map(WorkoutDuration.estimate).reduce(0, +),
-                                     source: "rules-v1", sync: SyncStamp(createdAt: r.now))
+                                     source: RulesWorkoutPlanner.source, sync: SyncStamp(createdAt: r.now))
         return workout
     }
 
@@ -357,125 +373,7 @@ public struct RulesWorkoutPlanner: WorkoutPlanner {
                               rounds: rounds, items: items)
     }
 
-    // MARK: Metabolic
-
-    func buildMetabolic(_ ctx: inout Context) throws -> WorkoutSection {
-        var rng = ctx.rng(.metabolic)
-        let scheduler = BenchmarkScheduler(calendar: ctx.calendar)
-        if !ctx.position.isTestWeek, let due = scheduler.due(on: ctx.request.date, benchmarks: ctx.request.benchmarks, history: ctx.history) {
-            if ctx.request.salts.metabolic == 0 {
-                let (section, subs) = scheduler.instantiate(due, settings: ctx.settings, library: ctx.library, using: &rng)
-                if let prev = PRDetector.previousBenchmarkResult(due.id, before: ctx.request.date, history: ctx.history, calendar: ctx.calendar) {
-                    ctx.reason(.metabolic, "metabolic.benchmark",
-                               "Your quarterly repeat. Last done in \(prev.date.longMonthName). Try to beat \(prev.score)!")
-                } else {
-                    ctx.reason(.metabolic, "metabolic.benchmark", "A quarterly benchmark: same moves, weights and timing every quarter. Set the score to beat!")
-                }
-                if !subs.isEmpty {
-                    ctx.reason(.metabolic, "benchmark.modified",
-                               "Swapped for your limits (\(subs.joined(separator: ", "))), so this score is marked \"modified\".")
-                }
-                return section
-            }
-            ctx.reason(.metabolic, "benchmark.deferred", "Shuffled: \(due.name) moves to your next metabolic day.")
-        }
-
-        let lighter = ctx.lighter
-        let budget = max(8, ctx.settings.targetMinutes - 30)
-        var templates = ctx.position.isTestWeek ? FormatLibrary.short : FormatLibrary.metabolic
-        if ctx.coachNote.makesPlanShorter { templates = templates.filter { $0.minutes <= 15 } }
-        let fitting = templates.filter { $0.minutes <= budget }
-        // Variety: formats used in the last 2 weeks are less likely.
-        let recentFormats = ctx.history.filter { $0.date >= ctx.request.date.adding(days: -14) && $0.status == .done }
-            .compactMap { $0.metabolicSection?.format }
-        guard let template = (fitting.isEmpty ? templates : fitting).weightedPick(using: &rng, weight: { t in
-            1 / (1 + Double(recentFormats.filter { $0 == t.format }.count))
-        }) else {
-            throw PlannerError.noMovementsAvailable(.metabolic)
-        }
-
-        // Moves: avoid loading the muscles the strength work just hammered and
-        // favour muscles trained least over the last 2 weeks.
-        let liftMuscles = ctx.lifts.reduce(into: Set<Muscle>()) { $0.formUnion($1.primaryMuscles) }
-        let usage = ctx.muscleUsage(days: 14)
-        let maxUse = Double(usage.values.max() ?? 1)
-        var pool = ctx.candidates(.metabolic).filter { c in
-            let overlap = liftMuscles.intersection(c.movement.muscles).count
-            return !(overlap >= 2 && c.movement.implement != .bodyweight)
-        }
-        if template.format == .tabata || template.format == .interval {
-            pool = pool.filter { !$0.movement.timed }
-        }
-        var picked: [(Movement, Movement?)] = []
-        for _ in 0..<template.moveCount {
-            let options = pool.filter { c in !picked.contains { $0.0.id == c.movement.id || $0.0.pattern == c.movement.pattern } }
-            guard let p = options.weightedPick(using: &rng, weight: { c in
-                let fresh = c.movement.muscles.map { 1 - Double(usage[$0] ?? 0) / max(maxUse, 1) }.max() ?? 0.5
-                return 0.3 + fresh
-            }) ?? pool.first(where: { c in !picked.contains { $0.0.id == c.movement.id } }) else { break }
-            picked.append((p.movement, p.substitutedFrom))
-        }
-        guard !picked.isEmpty else { throw PlannerError.noMovementsAvailable(.metabolic) }
-
-        // Weights follow recent metabolic ratings.
-        let ratings = ctx.history.filter { $0.status == .done }.compactMap(\.feedback?.metabolicDifficulty).suffix(2)
-        var weightShift = 0
-        if lighter { weightShift = -1 }
-        else if ratings.count == 2 {
-            let avg = Double(ratings.reduce(0, +)) / 2
-            if avg >= 4.5 { weightShift = -1 } else if avg <= 2 { weightShift = 1 }
-        }
-
-        let repsFactor: Double
-        switch template.intensity {
-        case .low: repsFactor = 0.5
-        case .mid: repsFactor = 1
-        case .high: repsFactor = 1
-        }
-        var items: [SectionItem] = []
-        var snapNotes: [String] = []
-        for (i, (m, _)) in picked.enumerated() {
-            let letter = String("ABCD"[String.Index(utf16Offset: i, in: "ABCD")])
-            var reps: Int? = max(2, Int((Double(m.baseReps) * repsFactor).rounded()))
-            var scheme: String?
-            var time: Int?
-            switch template.format {
-            case .forTime: scheme = template.repsScheme; reps = nil
-            case .tabata, .interval: reps = nil; time = template.workSec
-            default: break
-            }
-            if m.timed { time = m.baseReps; reps = nil }
-            var item = makeItem(m, letter: letter, reps: reps, ctx: ctx, rng: &rng, weightShift: weightShift, notes: &snapNotes)
-            item.repsScheme = scheme
-            if time != nil { item.timeSec = time; item.reps = nil }
-            items.append(item)
-        }
-
-        var used = Set(ctx.history.compactMap { $0.metabolicSection?.name })
-        ctx.request.benchmarks.forEach { used.insert($0.name) }
-        let name = WorkoutNamer.name(format: template.format, rounds: template.rounds, minutes: template.nameMinutes,
-                                     using: &rng, avoiding: used)
-
-        let least = Muscle.allCases.filter { m in picked.contains { $0.0.muscles.contains(m) } }
-            .min { (usage[$0] ?? 0, $0.rawValue) < (usage[$1] ?? 0, $1.rawValue) }
-        var why = "A fresh \(template.format.nameStructure) that stays off the muscles today's \(ctx.lifts.first?.displayName.lowercased() ?? "lift") works."
-        if let least, !usage.isEmpty { why += " Extra \(least.displayName), which you've trained least in the last 2 weeks." }
-        ctx.reason(.metabolic, "metabolic.remix", why)
-        if weightShift < 0 {
-            let cause = lighter ? (ctx.coachNote.makesPlanLighter ? "an easier day to get back in the groove" : "your energy was low last time")
-                                : "your last two metcons were rated hard"
-            ctx.reason(.metabolic, "metabolic.lighter", "Weights one size lighter: \(cause).")
-        }
-        if weightShift > 0 { ctx.reason(.metabolic, "metabolic.heavier", "Weights one size heavier: your last two metcons were rated easy.") }
-        let subs = picked.compactMap { m, from in from.map { "\($0.name) → \(m.name)" } }
-        if !subs.isEmpty { ctx.reason(.metabolic, "limits.substitute", "Swapped for your limits: " + subs.joined(separator: ", ") + ".") }
-        snapNotes.forEach { ctx.reason(.metabolic, "equipment.snap", $0) }
-
-        return WorkoutSection(id: UUID.seeded(&rng), kind: .metabolic, format: template.format, name: name,
-                              instructions: template.instructions, rounds: template.rounds, workSec: template.workSec,
-                              restSec: template.restSec, intervalSec: template.format == .emom ? 60 : nil,
-                              durationMin: template.durationMin, items: items)
-    }
+    // MARK: Metabolic (see MetconPlanning.swift)
 
     // MARK: Cool-down
 
@@ -562,40 +460,5 @@ public struct RulesWorkoutPlanner: WorkoutPlanner {
             break
         }
         return item
-    }
-
-    /// Trims the metabolic piece until the workout fits the target length.
-    func fitLength(_ sections: inout [WorkoutSection], _ ctx: inout Context) {
-        var target = ctx.settings.targetMinutes
-        if ctx.coachNote.makesPlanShorter { target = min(target, 40) }
-        guard let mi = sections.firstIndex(where: { $0.kind == .metabolic }), sections[mi].benchmarkID == nil else { return }
-        var trimmed = false
-        var guardCount = 0
-        while sections.map(WorkoutDuration.estimate).reduce(0, +) > target, guardCount < 20 {
-            guardCount += 1
-            var s = sections[mi]
-            switch s.format {
-            case .amrapWithRest, .interval:
-                guard let r = s.rounds, r > 2 else { break }
-                s.rounds = r - 1
-            case .amrap, .emom, .forTime:
-                guard let d = s.durationMin, d > 6 else { break }
-                s.durationMin = d - 2
-                if s.format == .emom { s.rounds = d - 2 }
-            default:
-                break
-            }
-            if s == sections[mi] { break }
-            sections[mi] = s
-            trimmed = true
-        }
-        if trimmed {
-            var s = sections[mi]
-            s.instructions = MetabolicTemplate(format: s.format, rounds: s.rounds ?? 1, workSec: s.workSec, restSec: s.restSec,
-                                               durationMin: s.durationMin, repsScheme: s.items.first?.repsScheme,
-                                               moveCount: s.items.count, intensity: .mid).instructions
-            sections[mi] = s
-            ctx.reason(.metabolic, "length.trimmed", "Trimmed so the whole workout fits about \(target) min.")
-        }
     }
 }

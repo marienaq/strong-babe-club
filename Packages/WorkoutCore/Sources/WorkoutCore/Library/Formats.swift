@@ -1,78 +1,7 @@
 import Foundation
 
-/// A metabolic format with its typical rounds / times.
-public struct MetabolicTemplate: Hashable, Sendable {
-    public enum Intensity: Sendable { case low, mid, high }
-
-    public var format: SectionFormat
-    public var rounds: Int
-    public var workSec: Int?
-    public var restSec: Int?
-    public var durationMin: Int?
-    public var repsScheme: String?
-    public var moveCount: Int
-    public var intensity: Intensity
-
-    /// Estimated minutes (used to fit the target length).
-    public var minutes: Int {
-        if let d = durationMin { return d }
-        if let w = workSec { return max(1, Int((Double(rounds * (w + (restSec ?? 0))) / 60).rounded())) }
-        return 12
-    }
-
-    /// Time component of the name (`amrap-5-4-...` uses the 4 min AMRAP).
-    public var nameMinutes: Int {
-        if format == .amrapWithRest { return max(1, (workSec ?? 60) / 60) }
-        return minutes
-    }
-
-    public var instructions: String {
-        switch format {
-        case .amrapWithRest:
-            let w = (workSec ?? 240) / 60
-            let r = restSec ?? 60
-            let rest = r % 60 == 0 ? "\(r / 60) min" : "\(r) s"
-            return "\(rounds) rounds · as many as you can in \(w) min · rest \(rest)"
-        case .amrap:
-            return "As many rounds as you can in \(durationMin ?? 12) min"
-        case .interval:
-            return "\(rounds) rounds · \(workSec ?? 40) s work / \(restSec ?? 20) s rest"
-        case .forTime:
-            return "\(repsScheme ?? "21-15-9") for time · cap \(durationMin ?? 15) min"
-        case .tabata:
-            return "Tabata: \(rounds) rounds per move · 20 s work / 10 s rest, alternating moves"
-        case .emom:
-            return "Every minute for \(durationMin ?? 12) min · alternate the moves"
-        default:
-            return "\(rounds) rounds"
-        }
-    }
-}
-
+/// Warm-up and cool-down constants. Metcon shapes live in `MetconCatalog`.
 public enum FormatLibrary {
-    /// Metabolic formats seen in the coach's sheet: interval, AMRAP with rest,
-    /// descending ladder for time, Tabata and EMOM.
-    public static let metabolic: [MetabolicTemplate] = [
-        MetabolicTemplate(format: .amrapWithRest, rounds: 5, workSec: 240, restSec: 60, moveCount: 3, intensity: .low),
-        MetabolicTemplate(format: .amrapWithRest, rounds: 4, workSec: 180, restSec: 60, moveCount: 3, intensity: .low),
-        MetabolicTemplate(format: .amrapWithRest, rounds: 3, workSec: 300, restSec: 60, moveCount: 3, intensity: .low),
-        MetabolicTemplate(format: .amrap, rounds: 1, durationMin: 12, moveCount: 3, intensity: .mid),
-        MetabolicTemplate(format: .amrap, rounds: 1, durationMin: 15, moveCount: 4, intensity: .mid),
-        MetabolicTemplate(format: .interval, rounds: 6, workSec: 40, restSec: 20, moveCount: 3, intensity: .mid),
-        MetabolicTemplate(format: .interval, rounds: 8, workSec: 45, restSec: 15, moveCount: 4, intensity: .mid),
-        MetabolicTemplate(format: .forTime, rounds: 1, durationMin: 15, repsScheme: "21-15-9", moveCount: 2, intensity: .high),
-        MetabolicTemplate(format: .forTime, rounds: 1, durationMin: 15, repsScheme: "10-8-6-4-2", moveCount: 3, intensity: .mid),
-        MetabolicTemplate(format: .tabata, rounds: 8, workSec: 20, restSec: 10, durationMin: 8, moveCount: 2, intensity: .mid),
-        MetabolicTemplate(format: .emom, rounds: 12, workSec: 60, durationMin: 12, moveCount: 3, intensity: .low),
-    ]
-
-    /// Short pieces for the test week ("short metabolic pieces still run").
-    public static let short: [MetabolicTemplate] = [
-        MetabolicTemplate(format: .amrap, rounds: 1, durationMin: 8, moveCount: 3, intensity: .mid),
-        MetabolicTemplate(format: .tabata, rounds: 8, workSec: 20, restSec: 10, durationMin: 8, moveCount: 2, intensity: .mid),
-        MetabolicTemplate(format: .emom, rounds: 8, workSec: 60, durationMin: 8, moveCount: 2, intensity: .low),
-    ]
-
     public static let warmupRounds = 3
     /// "15-15-15-15-15" core work.
     public static let coreScheme = "15-15-15-15-15"

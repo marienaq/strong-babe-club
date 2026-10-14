@@ -84,8 +84,14 @@ public struct MetconShape: Hashable, Sendable, Identifiable {
     /// Estimated seconds with `n` moves (for time: nil, it depends on the cap).
     public func seconds(moves n: Int) -> Int? {
         guard format != .forTime else { return nil }
+        if let cached = MetconCatalog.secondsTable[id]?[n] { return cached }
+        return computeSeconds(moves: n)
+    }
+
+    func computeSeconds(moves n: Int) -> Int {
         var s = section()
-        s.items = (0..<n).map { SectionItem(letter: "ABCDE".map(String.init)[min($0, 4)], movementID: "m\($0)", movementName: "M\($0)") }
+        let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+        s.items = (0..<n).map { SectionItem(id: zero, letter: "ABCDE".map(String.init)[min($0, 4)], movementID: "m\($0)", movementName: "M\($0)") }
         return WorkoutDuration.estimateSeconds(s)
     }
 
@@ -137,7 +143,18 @@ public enum MetconCatalog {
         return out
     }()
 
-    public static func shapes(_ format: SectionFormat) -> [MetconShape] { shapes.filter { $0.format == format } }
+    static let byFormat: [SectionFormat: [MetconShape]] = Dictionary(grouping: shapes, by: \.format)
+
+    public static func shapes(_ format: SectionFormat) -> [MetconShape] { byFormat[format] ?? [] }
+
+    /// Shape id -> move count -> seconds (worked out once).
+    static let secondsTable: [String: [Int: Int]] = {
+        var t: [String: [Int: Int]] = [:]
+        for s in shapes where s.format != .forTime {
+            t[s.id] = Dictionary(uniqueKeysWithValues: s.moveCounts.map { ($0, s.computeSeconds(moves: $0)) })
+        }
+        return t
+    }()
 
     /// Planner metcon formats.
     public static let formats: [SectionFormat] = [.amrap, .emom, .amrapWithRest, .stations, .interval, .tabata, .forTime]

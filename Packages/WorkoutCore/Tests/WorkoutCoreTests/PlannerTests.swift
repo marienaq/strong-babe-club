@@ -82,8 +82,10 @@ final class PlannerTests: XCTestCase {
         XCTAssertEqual(s.intervalSec, 120)
         XCTAssertTrue(s.instructions.contains("heavy 3"))
         XCTAssertTrue(w.reasons(for: .strength).contains { $0.rule == "test.week" && $0.text.contains("never a true max") })
-        // Short metabolic piece in test week.
-        XCTAssertLessThanOrEqual(WorkoutDuration.estimate(w.metabolicSection!), 8)
+        // Short metabolic piece in test week: 12-16 min, 3-5 moves (MC-47).
+        let m = try XCTUnwrap(w.metabolicSection)
+        XCTAssertTrue((720...1019).contains(m.estimatedSeconds), "\(m.estimatedSeconds)")
+        XCTAssertTrue((3...5).contains(m.items.count))
     }
 
     func testTestWeekRampStartsAtHalfOfLastTopSet() throws {

@@ -65,7 +65,16 @@ public enum Lift: String, CaseIterable, Codable, Sendable, Comparable {
     }
 
     /// Movement library id of the lift.
-    public var movementID: String { rawValue.replacingOccurrences(of: "_", with: "-") }
+    public var movementID: String {
+        switch self {
+        case .backSquat: return "back-squat"
+        case .deadlift: return "deadlift"
+        case .pushPress: return "push-press"
+        case .frontSquat: return "front-squat"
+        case .hangPowerClean: return "hang-power-clean"
+        case .pushJerk: return "push-jerk"
+        }
+    }
 
     /// Matches canonical movement names from the coach's sheet ("Hang Power Clean").
     public init?(movementName: String) {
