@@ -8,7 +8,7 @@ import Foundation
 ///   -sbc-tab journal|progress|settings
 ///   -sbc-open session|why|finish|bears
 ///   -sbc-section warmup|strength|metabolic|cooldown
-///   -sbc-metabolic tabata|interval|amrap_with_rest|for_time|emom|amrap
+///   -sbc-metabolic tabata|interval|stations|amrap_with_rest|for_time|emom|amrap
 ///   -sbc-scroll-bottom         scroll the page to the end
 ///   -sbc-expand                open "view history" panels
 ///   -sbc-scroll-to ID          scroll the page to a view id (e.g. missedGroup)

@@ -73,13 +73,18 @@ final class SectionRecord {
     var lift: String?
     var trainingMax: Double?
     var athleteNote: String
+    // Metcon v2 (optional, so stores from older versions migrate as nil).
+    var roundRestSec: Int?
+    var stimulus: String?
+    var expectedScore: Double?
     var workout: WorkoutRecord?
     @Relationship(deleteRule: .cascade, inverse: \ItemRecord.section) var items: [ItemRecord] = []
     @Relationship(deleteRule: .cascade, inverse: \RoundLogRecord.section) var roundLogs: [RoundLogRecord] = []
 
     init(id: UUID, position: Int, kind: String, format: String, name: String?, instructions: String, rounds: Int?,
          workSec: Int?, restSec: Int?, intervalSec: Int?, durationMin: Int?, benchmarkID: UUID?, isModified: Bool,
-         lift: String?, trainingMax: Double?, athleteNote: String) {
+         lift: String?, trainingMax: Double?, athleteNote: String, roundRestSec: Int? = nil, stimulus: String? = nil,
+         expectedScore: Double? = nil) {
         self.id = id
         self.position = position
         self.kind = kind
@@ -96,6 +101,9 @@ final class SectionRecord {
         self.lift = lift
         self.trainingMax = trainingMax
         self.athleteNote = athleteNote
+        self.roundRestSec = roundRestSec
+        self.stimulus = stimulus
+        self.expectedScore = expectedScore
     }
 }
 
@@ -195,13 +203,18 @@ final class BenchmarkRecord {
     var templateJSON: Data
     var active: Bool
     var quarterSlot: Int
+    // Metcon v2 (optional, so stores from older versions migrate as nil).
+    var retiredReason: String?
+    var replacesID: UUID?
 
-    init(id: UUID, name: String, templateJSON: Data, active: Bool, quarterSlot: Int) {
+    init(id: UUID, name: String, templateJSON: Data, active: Bool, quarterSlot: Int, retiredReason: String? = nil, replacesID: UUID? = nil) {
         self.id = id
         self.name = name
         self.templateJSON = templateJSON
         self.active = active
         self.quarterSlot = quarterSlot
+        self.retiredReason = retiredReason
+        self.replacesID = replacesID
     }
 }
 

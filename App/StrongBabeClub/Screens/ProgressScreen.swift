@@ -130,7 +130,9 @@ struct ProgressScreen: View {
                 .hand(17, color: Palette.muted)
                 ForEach(rows, id: \.benchmark.id) { row in
                     HStack {
-                        Text(row.benchmark.name).bodyText(13, .heavy).lineLimit(1).minimumScaleFactor(0.7).frame(maxWidth: .infinity, alignment: .leading)
+                        Text(row.benchmark.name + (row.benchmark.isRetired ? " (retired)" : row.benchmark.replacesID != nil ? " (new)" : ""))
+                            .bodyText(13, .heavy, color: row.benchmark.isRetired ? Palette.muted : Palette.ink)
+                            .lineLimit(1).minimumScaleFactor(0.7).frame(maxWidth: .infinity, alignment: .leading)
                         ForEach(Array(blocks), id: \.self) { b in
                             Text(row.byBlock[b].map { $0.score.description + ($0.modified ? "*" : "") } ?? "–").hand(18).frame(width: 56)
                         }

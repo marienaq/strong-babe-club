@@ -102,7 +102,8 @@ struct WhySheet: View {
             let lifts = s.items.map(\.movementName).joined(separator: " + ")
             return "\(lifts) · \(s.shortSummary)\(s.intervalSec.map { " every \($0 / 60) min" } ?? "")"
         case .metabolic:
-            return (s.name ?? s.format.nameStructure) + (s.benchmarkID != nil ? " (benchmark)" : "")
+            let feel = s.stimulus.map { " · \($0.title.lowercased())" } ?? ""
+            return (s.name ?? s.format.nameStructure) + (s.benchmarkID != nil ? " (benchmark)" : feel)
         default:
             return s.items.map { $0.movementName.lowercased() }.joined(separator: " · ")
         }

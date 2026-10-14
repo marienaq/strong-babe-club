@@ -339,6 +339,9 @@ struct MetabolicSectionView: View {
                 Text("metabolic").hand(20, color: Palette.skyDeep)
                 Text(section.name ?? section.format.nameStructure).bodyText(22, .heavy).accessibilityAddTraits(.isHeader)
                     .padding(.trailing, section.benchmarkID != nil ? 64 : 0)
+                if let feel = feelLine {
+                    Text(feel).hand(18, color: Palette.skyDeep).accessibilityIdentifier("metconFeel")
+                }
                 Text(section.instructions).bodyText(14, .semibold)
                 ForEach(section.items) { item in
                     HStack(spacing: 10) {
@@ -373,11 +376,33 @@ struct MetabolicSectionView: View {
         }
     }
 
+    /// "repeat efforts · 19 min · about 4 rounds per block"
+    var feelLine: String? {
+        guard let stimulus = section.stimulus else { return nil }
+        var parts = [stimulus.title.lowercased(), "\(WorkoutDuration.estimate(section)) min"]
+        if let k = section.expectedScore {
+            switch section.format {
+            case .amrapWithRest: parts.append("about \(Self.about(k)) rounds per block")
+            case .amrap: parts.append("about \(Self.about(k)) rounds")
+            case .forTime: parts.append("about \(Int((k / 60).rounded())) min to finish")
+            default: break
+            }
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// "4" / "3.5"
+    static func about(_ x: Double) -> String {
+        let half = (x * 2).rounded() / 2
+        return half == half.rounded() ? "\(Int(half))" : String(format: "%.1f", half)
+    }
+
     @ViewBuilder var timerRow: some View {
         if let timer {
             let snap = timer.snapshot
             let isRest = snap.phase?.kind == .rest
-            let roundsTotal = timer.plan.phases.filter { $0.kind == .work }.count
+            // Rounds as logged: a round of stations or intervals is a full circuit.
+            let roundsTotal = timer.plan.phases.map(\.round).max() ?? 1
             HStack(spacing: 16) {
                 TimerRing(progress: snap.isFinished ? 1 : snap.phaseProgress, color: isRest ? Palette.mint : Palette.sky,
                           track: Color(hex: 0xE3ECFF), label: formatClock(snap.isFinished ? 0 : snap.remainingInPhase),
@@ -387,8 +412,7 @@ struct MetabolicSectionView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("round \(min(snap.phase?.round ?? roundsTotal, roundsTotal)) of \(roundsTotal)").hand(24)
                         .accessibilityIdentifier("roundOfTotal")
-                    Text(section.restSec.map { "then \(formatClock($0)) rest. Bell at each round, phone buzzes too." } ?? "Bell at each round, phone buzzes too.")
-                        .bodyText(13, .semibold, color: Palette.muted)
+                    Text(restLine).bodyText(13, .semibold, color: Palette.muted)
                     HStack(spacing: 10) {
                         Button(timer.isRunning ? "pause" : "start") { timer.toggle() }
                             .bodyText(15, .heavy, color: Palette.cream)
@@ -405,6 +429,17 @@ struct MetabolicSectionView: View {
                     .buttonStyle(.plain)
                 }
             }
+        }
+    }
+
+    var restLine: String {
+        switch section.format {
+        case .stations:
+            return "Stations back to back, then \(formatClock(section.roundRestSec ?? 60)) rest. Bell at each change, phone buzzes too."
+        case .tabata:
+            return "One move at a time: 40 s work, 20 s rest. Bell at each change, phone buzzes too."
+        default:
+            return section.restSec.map { "then \(formatClock($0)) rest. Bell at each round, phone buzzes too." } ?? "Bell at each round, phone buzzes too."
         }
     }
 

@@ -52,7 +52,8 @@ final class SwiftDataRepository: Repository {
         }
         d.benchmarks = try context.fetch(FetchDescriptor<BenchmarkRecord>(sortBy: [SortDescriptor(\.quarterSlot)])).compactMap { r in
             guard let t = try? decoder.decode(WorkoutSection.self, from: r.templateJSON) else { return nil }
-            return Benchmark(id: r.id, name: r.name, template: t, active: r.active, quarterSlot: r.quarterSlot)
+            return Benchmark(id: r.id, name: r.name, template: t, active: r.active, quarterSlot: r.quarterSlot,
+                             retiredReason: r.retiredReason, replacesID: r.replacesID)
         }
         d.goals = try context.fetch(FetchDescriptor<GoalRecord>()).compactMap { r in
             guard let lift = Lift(rawValue: r.lift) else { return nil }
@@ -85,7 +86,8 @@ final class SwiftDataRepository: Repository {
 
     func save(benchmarks: [Benchmark]) throws {
         try replace(BenchmarkRecord.self, with: try benchmarks.map { b in
-            BenchmarkRecord(id: b.id, name: b.name, templateJSON: try encoder.encode(b.template), active: b.active, quarterSlot: b.quarterSlot)
+            BenchmarkRecord(id: b.id, name: b.name, templateJSON: try encoder.encode(b.template), active: b.active, quarterSlot: b.quarterSlot,
+                            retiredReason: b.retiredReason, replacesID: b.replacesID)
         })
     }
 
@@ -158,7 +160,8 @@ final class SwiftDataRepository: Repository {
             let sr = SectionRecord(id: s.id, position: si, kind: s.kind.rawValue, format: s.format.rawValue, name: s.name,
                                    instructions: s.instructions, rounds: s.rounds, workSec: s.workSec, restSec: s.restSec,
                                    intervalSec: s.intervalSec, durationMin: s.durationMin, benchmarkID: s.benchmarkID,
-                                   isModified: s.isModified, lift: s.lift?.rawValue, trainingMax: s.trainingMax, athleteNote: s.athleteNote)
+                                   isModified: s.isModified, lift: s.lift?.rawValue, trainingMax: s.trainingMax, athleteNote: s.athleteNote,
+                                   roundRestSec: s.roundRestSec, stimulus: s.stimulus?.rawValue, expectedScore: s.expectedScore)
             context.insert(sr)
             sr.workout = r
             for (ii, item) in s.items.enumerated() {
@@ -202,7 +205,9 @@ final class SwiftDataRepository: Repository {
                                   athleteNote: s.athleteNote, items: items,
                                   roundLogs: s.roundLogs.sorted { $0.roundNumber < $1.roundNumber }.map {
                                       RoundLog(id: $0.id, roundNumber: $0.roundNumber, rounds: $0.rounds, reps: $0.reps, timeSec: $0.timeSec)
-                                  })
+                                  },
+                                  roundRestSec: s.roundRestSec, stimulus: s.stimulus.flatMap(MetconStimulus.init(rawValue:)),
+                                  expectedScore: s.expectedScore)
         }
         let feedback = r.hasFeedback
             ? WorkoutFeedback(energy: r.energy.flatMap(Energy.init(rawValue:)), strengthDifficulty: r.strengthDifficulty,

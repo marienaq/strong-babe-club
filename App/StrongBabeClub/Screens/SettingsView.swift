@@ -325,10 +325,17 @@ struct BenchmarksView: View {
     var body: some View {
         List {
             Section {
-                ForEach(store.benchmarks) { b in
+                ForEach(store.benchmarks.filter { !$0.isRetired }) { b in
                     Toggle(isOn: Binding(get: { b.active }, set: { store.setBenchmark(b.id, active: $0) })) {
                         VStack(alignment: .leading) {
-                            Text(b.name).font(.headline)
+                            HStack(spacing: 6) {
+                                Text(b.name).font(.headline)
+                                if b.replacesID != nil {
+                                    Text("new").font(.caption2.weight(.heavy)).padding(.horizontal, 6).padding(.vertical, 1)
+                                        .background(Capsule().fill(Palette.sunny))
+                                        .accessibilityLabel("new, replaces a retired benchmark")
+                                }
+                            }
                             Text("due from block week \(BenchmarkScheduler.dueWeek(forSlot: b.quarterSlot)) · \(b.template.instructions)")
                                 .font(.caption).foregroundStyle(.secondary).lineLimit(2)
                         }
@@ -337,7 +344,26 @@ struct BenchmarksView: View {
             } footer: {
                 Text("Each benchmark repeats exactly once a quarter so you can beat your score.")
             }
+            let retired = store.benchmarks.filter(\.isRetired)
+            if !retired.isEmpty {
+                Section {
+                    ForEach(retired) { b in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(b.name) · retired").font(.headline).foregroundStyle(.secondary)
+                            Text(BenchmarkMaintenance.retiredText(b) ?? "").font(.caption).foregroundStyle(.secondary)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                } header: {
+                    Text("Retired")
+                } footer: {
+                    Text("Metcons have 3–5 moves and last 12–24 minutes. Benchmarks that don't are retired, never changed.")
+                }
+            }
             Section {
+                Toggle("Replace retired benchmarks from my history", isOn: Binding(
+                    get: { store.settings.autoReplaceRetiredBenchmarks },
+                    set: { store.setAutoReplaceRetiredBenchmarks($0) }))
                 Button("Propose 6 from my history") { store.proposeBenchmarks() }
             }
         }

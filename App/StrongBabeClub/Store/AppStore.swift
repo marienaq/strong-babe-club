@@ -60,6 +60,8 @@ final class AppStore {
             goals = d.goals
             clearImportedStickers()
             migrateOnboarding()
+            migrateLegacyStations()
+            refreshBenchmarks()
             Log.store.info("loaded \(self.workouts.count, privacy: .public) workouts")
         } catch {
             fail("Couldn't open your journal.", error)
@@ -73,7 +75,18 @@ final class AppStore {
         let t = today
         backfillMissedDays(through: t.adding(days: -1))
         rollTrainingMaxes(asOf: t)
+        await replanOldPlans(from: t)
         await ensurePlan(for: nextPlanDate(after: t))
+    }
+
+    /// Untouched future plans from older planner rules (e.g. "rules-v1")
+    /// are re-planned with the current rules, keeping their id and shuffles.
+    private func replanOldPlans(from t: LocalDate) async {
+        let old = visibleWorkouts.filter {
+            $0.date >= t && $0.status == .planned && !hasLogs($0) && $0.source != RulesWorkoutPlanner.source
+                && $0.source.hasPrefix("rules-")
+        }
+        for w in old { await ensurePlan(for: w.date) }
     }
 
     func nextPlanDate(after t: LocalDate) -> LocalDate {
@@ -110,7 +123,7 @@ final class AppStore {
 
     func ensurePlan(for date: LocalDate) async {
         let existing = workout(on: date)
-        if let existing, existing.status != .planned || hasLogs(existing) || existing.source != "rules-v1" && existing.source != "missed" {
+        if let existing, existing.status != .planned || hasLogs(existing) || !RulesWorkoutPlanner.replannableSources.contains(existing.source) {
             return
         }
         isPlanning = true
@@ -120,7 +133,7 @@ final class AppStore {
             if let existing { w.sync = SyncStamp(createdAt: existing.sync.createdAt, updatedAt: now) }
             if w != existing { upsert([w]) }
         } catch {
-            fail("Couldn't plan the next workout.", error)
+            fail((error as? PlannerError)?.userMessage ?? "Couldn't plan the next workout.", error)
         }
     }
 
@@ -250,7 +263,7 @@ final class AppStore {
             upsert([s])
             Haptics.play(.tap)
         } catch {
-            fail("Couldn't shuffle that.", error)
+            fail((error as? PlannerError)?.userMessage ?? "Couldn't shuffle that.", error)
         }
     }
 
@@ -301,6 +314,24 @@ final class AppStore {
         guard !stray.isEmpty else { return }
         upsert(stray.map { var w = $0; w.sticker = nil; return w })
         Log.store.info("cleared \(stray.count, privacy: .public) imported stickers")
+    }
+
+    /// Migration: stations imported before metcon v2 were stored as 60/60
+    /// intervals. They are read as stations (same moves, right timer).
+    private func migrateLegacyStations() {
+        let fixed = workouts.compactMap(SectionMigration.migrate)
+        guard !fixed.isEmpty else { return }
+        upsert(fixed)
+        Log.store.info("migrated \(fixed.count, privacy: .public) station pieces")
+    }
+
+    /// Retires benchmarks that break the metcon rules (never changing them)
+    /// and, unless turned off, fills their quarter slot from history.
+    private func refreshBenchmarks() {
+        let refreshed = BenchmarkMaintenance.refresh(benchmarks, history: doneWorkouts, settings: settings)
+        guard refreshed != benchmarks else { return }
+        benchmarks = refreshed
+        persist { try repo.save(benchmarks: benchmarks) }
     }
 
     // MARK: Onboarding
@@ -504,8 +535,16 @@ final class AppStore {
     }
 
     func proposeBenchmarks() {
-        benchmarks = BenchmarkProposer.propose(from: doneWorkouts)
+        benchmarks = BenchmarkProposer.propose(from: doneWorkouts, settings: settings)
         persist { try repo.save(benchmarks: benchmarks) }
+    }
+
+    /// Benchmarks view: add a replacement from history when one is retired.
+    func setAutoReplaceRetiredBenchmarks(_ on: Bool) {
+        var s = settings
+        s.autoReplaceRetiredBenchmarks = on
+        updateSettings(s)
+        refreshBenchmarks()
     }
 
     func setBenchmark(_ id: UUID, active: Bool) {
