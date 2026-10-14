@@ -60,6 +60,16 @@ public enum MetconWeekPlan {
         }
     }
 
+    /// Stimulus weights per phase. Test weeks (2 in 14) only allow grind and
+    /// intervals, so the other weeks lean a little more on repeat and race
+    /// to keep the year's mix at grind 20 / repeat 45 / race 17 / intervals 18.
+    public static func stimulusWeights(phase: BlockPhase) -> [MetconStimulus: Double] {
+        switch phase {
+        case .test: return [.grind: 20, .intervals: 18]
+        default: return [.grind: 12, .repeat: 54, .race: 24, .intervals: 10]
+        }
+    }
+
     public static func allowedFormats(phase: BlockPhase) -> [SectionFormat] {
         switch phase {
         case .deload: return MetconCatalog.formats.filter { $0 != .forTime }
@@ -141,9 +151,17 @@ public enum MetconWeekPlan {
             let fresh = options.filter { !formats.values.contains($0) }
             let pool = fresh.isEmpty ? options : fresh
             let sameWeekdayLastWeek = lastWeek[days[i].adding(days: -7)]?.format
-            formats[i] = pool.weightedPick(using: &rng) { f in
-                (MetconCatalog.formatWeights[f] ?? 1) * (f == sameWeekdayLastWeek ? 0.5 : 1)
-            } ?? .amrap
+            let weight = { (f: SectionFormat) in (MetconCatalog.formatWeights[f] ?? 1) * (f == sameWeekdayLastWeek ? 0.5 : 1) }
+            // Stimulus first, then a format of it: two repeat days in a week
+            // can still be AMRAP-with-rest and stations, so the yearly mix
+            // stays close to §6.1 despite the no-repeat rule.
+            let stimuli = MetconStimulus.allCases.filter { st in pool.contains { MetconStimulus(format: $0) == st } }
+            let stimulus = stimuli.weightedPick(using: &rng) { st in
+                let fs = st.formats.filter(pool.contains)
+                let full = fs.reduce(0) { $0 + (MetconCatalog.formatWeights[$1] ?? 1) }
+                return stimulusWeights(phase: phase)[st, default: 1] * (full > 0 ? fs.reduce(0) { $0 + weight($1) } / full : 1)
+            }
+            formats[i] = pool.filter { MetconStimulus(format: $0) == stimulus }.weightedPick(using: &rng, weight: weight) ?? .amrap
         }
 
         var out: [LocalDate: DayMetconPlan] = [:]

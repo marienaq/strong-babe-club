@@ -107,6 +107,8 @@ extension RulesWorkoutPlanner {
         if m.isBodyweightPattern(of: setup.daySlot) && ms.contains(where: { $0.isBodyweightPattern(of: setup.daySlot) }) { return false }
         if m.isCoreMove && ms.filter(\.isCoreMove).count >= (n == 5 ? 2 : 1) { return false }
         if m.isBarbellLift && ms.contains(where: \.isBarbellLift) { return false }
+        // One footwork move is plenty (two looked nothing like the coach's).
+        if m.fills.contains(.agility) && ms.contains(where: { $0.fills.contains(.agility) }) { return false }
         return true
     }
 
@@ -239,6 +241,8 @@ extension RulesWorkoutPlanner {
     }
 
     static let countWeights: [Int: Double] = [3: 45, 4: 50, 5: 5]
+    static let forTimeCountWeights: [Int: Double] = [3: 35, 4: 60, 5: 5]
+    static let amrapCountWeights: [Int: Double] = [3: 55, 4: 40, 5: 5]
 
     /// Picks the move count for a shape: 3 (45), 4 (50), 5 (5).
     static func pickCount(_ counts: [Int], level: MetconLevel, rng: inout SeededRandom) -> Int? {
@@ -262,9 +266,13 @@ extension RulesWorkoutPlanner {
             }
         }
         if level >= .fewerMoves, let fewest = options.map(\.moves).min() { options = options.filter { $0.moves == fewest } }
+        // The coach's for-time pieces were mostly 4 moves. AMRAPs lean a little
+        // to 3 moves: the fixed shapes that fit the longer days are mostly
+        // 4 moves, and the year should end near the coach's 44/52/5.
+        let weights = format == .forTime ? forTimeCountWeights : options.contains { $0.shape?.moves == nil } ? amrapCountWeights : countWeights
         var ordered: [(shape: MetconShape?, moves: Int)] = []
         while !options.isEmpty {
-            guard let pick = Array(options.indices).weightedPick(using: &rng, weight: { countWeights[options[$0].moves] ?? 1 }) else { break }
+            guard let pick = Array(options.indices).weightedPick(using: &rng, weight: { weights[options[$0].moves] ?? 1 }) else { break }
             ordered.append(options.remove(at: pick))
         }
         return ordered
@@ -361,8 +369,12 @@ extension RulesWorkoutPlanner {
                 remaining.removeAll { $0.id == s.id }
                 let base = s.scheme ?? []
                 let moves = ordered.map(\.move)
+                // The biggest rung stays within 2 unbroken sets, and the whole
+                // piece within 6 (a 10-to-1 of burpees is fine, 84 pull-ups aren't).
+                let total = base.reduce(0, +)
                 let tooBig = moves.contains { m in
-                    (base.max() ?? 0) * PaceModel.forTimeMultiplier(secondsPerRep: m.secondsPerRep) > 2 * m.repRange.upperBound
+                    let mult = PaceModel.forTimeMultiplier(secondsPerRep: m.secondsPerRep)
+                    return (base.max() ?? 0) * mult > 2 * m.repRange.upperBound || total * mult > 6 * m.repRange.upperBound
                 }
                 guard !tooBig else { continue }
                 let e = setup.pace.forTimeSeconds(scheme: base, moves: moves)
@@ -419,9 +431,11 @@ extension RulesWorkoutPlanner {
         // the moves (so the best-of-12 doesn't drift toward fewer moves).
         func best(_ format: SectionFormat, _ level: MetconLevel, _ window: ClosedRange<Int>) -> MetconCandidate? {
             var shapeRNG = SeededRandom(seed: seed ^ (UInt64(MetconCatalog.formats.firstIndex(of: format) ?? 0) &+ 1) &* 0xA24B_AED4_963E_E407)
+            var fallback: MetconCandidate?
             for option in Self.shapeOptions(format: format, window: window, setup: setup, level: level, rng: &shapeRNG) {
                 var winner: MetconCandidate?
-                for _ in 0..<12 {
+                // For time needs moves whose finish time fits the cap, so it gets more tries.
+                for _ in 0..<(format == .forTime ? 36 : 12) {
                     var r = SeededRandom(seed: seed &+ attempt &* 0x9E37_79B9_7F4A_7C15)
                     attempt &+= 1
                     guard var c = metconCandidate(format: format, shape: option.shape, moves: option.moves, window: window, setup: setup,
@@ -429,9 +443,12 @@ extension RulesWorkoutPlanner {
                     c.firstPenalty = winner?.firstPenalty ?? c.score.penalty
                     if winner == nil || c.score.penalty < winner!.score.penalty { winner = c }
                 }
-                if let winner { return winner }
+                guard let winner else { continue }
+                if winner.score.penalty <= MetconQuality.threshold { return winner }
+                // All 12 look unusual: try the other shapes before settling.
+                if fallback == nil || winner.score.penalty < fallback!.score.penalty { fallback = winner }
             }
-            return nil
+            return fallback
         }
         // F5 order: the planned format, then the same stimulus, then any
         // format with a shape in the window (time-based first when the pool
