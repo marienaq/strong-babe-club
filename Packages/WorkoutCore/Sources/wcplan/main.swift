@@ -89,7 +89,9 @@ while printed < days {
                 switch s.format {
                 case .forTime: w.sections[i].roundLogs = [RoundLog(roundNumber: 1, timeSec: Int(k > 0 ? k : 900))]
                 case .amrap, .amrapWithRest:
-                    w.sections[i].roundLogs = (1...s.prescribedRounds).map { RoundLog(roundNumber: $0, rounds: Int(max(k, 1)), reps: 0) }
+                    // On pace: the expected rounds, with the partial round as reps.
+                    let whole = Int(max(k, 1)), partial = Int((max(k, 1) - Double(whole)) * Double(s.repsPerRound))
+                    w.sections[i].roundLogs = (1...s.prescribedRounds).map { RoundLog(roundNumber: $0, rounds: whole, reps: partial) }
                 default:
                     w.sections[i].roundLogs = (1...s.prescribedRounds).map { RoundLog(roundNumber: $0, reps: 20) }
                 }

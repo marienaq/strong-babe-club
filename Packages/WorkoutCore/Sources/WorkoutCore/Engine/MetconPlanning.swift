@@ -117,10 +117,15 @@ extension RulesWorkoutPlanner {
         // §6.3 day adjustments: coach note, then the session budget.
         var window = plan.window
         let jsu = ctx.coachNote.makesPlanShorter
-        let comeback = ctx.coachNote.kind == .comeback
+        // Back after 28+ days off: middle length and lighter weights for 2 weeks (MC-65).
+        let welcomeBack = MetconFeedback.isComeback(history: ctx.history, on: date)
+        let comeback = ctx.coachNote.kind == .comeback || welcomeBack
+        // Learned from scores and ratings (§22).
+        let pace = MetconFeedback.learnedPace(from: ctx.history, library: ctx.library)
+        let density = MetconFeedback.density(from: ctx.history, library: ctx.library)
         if jsu {
             window = 720...840
-        } else if comeback {
+        } else if comeback || density <= 0.9 {
             window = window.lowerBound...max(window.lowerBound, min(window.upperBound, MetconBand.middle.range.upperBound))
         }
         let nonMetcon = WorkoutDuration.estimate(warmup) + WorkoutDuration.estimate(strength) + 6
@@ -151,7 +156,9 @@ extension RulesWorkoutPlanner {
         var lighter: [String] = []
         var heavier: [String] = []
         if pos.phase == .deload { lighter.append("deload week") }
-        if ctx.coachNote.makesPlanLighter {
+        if welcomeBack {
+            lighter.append("you're coming back from a break")
+        } else if ctx.coachNote.makesPlanLighter {
             lighter.append("an easier day to get back in the groove")
         } else if ctx.history.last(where: { $0.status == .done })?.feedback?.energy == .sleepy {
             lighter.append("your energy was low last time")
@@ -174,8 +181,8 @@ extension RulesWorkoutPlanner {
         let recent = ctx.history.filter { $0.date >= date.adding(days: -7) && $0.status == .done }.compactMap(\.metabolicSection)
 
         let setup = MetconSetup(dayLift: lift, window: window, format: format, formats: allowed.isEmpty ? [.amrap] : allowed,
-                                isPullDay: plan.isPullDay, maxMoves: jsu ? 4 : 5, weightShift: shift, density: 1,
-                                pace: .neutral, deload: pos.phase == .deload, highImpactBlocked: jumpy >= 2,
+                                isPullDay: plan.isPullDay, maxMoves: jsu ? 4 : 5, weightShift: shift, density: density,
+                                pace: pace, deload: pos.phase == .deload, highImpactBlocked: jumpy >= 2,
                                 weekMoveIDs: Set(weekMetcons.flatMap(moveIDs)), recentMoveIDs: Set(recent.flatMap(moveIDs)),
                                 warmupIDs: Set(warmup.items.map(\.movementID)),
                                 accessoryID: strength.secondaryItems.first?.movementID, usage: ctx.muscleUsage(days: 14))
@@ -191,6 +198,15 @@ extension RulesWorkoutPlanner {
 
         let day = MetconDay(plan: plan, window: window, budgetClipped: clipped, justShowUp: jsu, comeback: comeback)
         addMetconReasons(&ctx, candidate: c, section: section, setup: setup, day: day, lighter: lighter, heavier: heavier)
+        if welcomeBack {
+            ctx.reason(.metabolic, "metabolic.comeback", "Welcome back: a middle-length piece with lighter weights for your first two weeks.")
+        }
+        if let text = paceText(section, pace: pace) { ctx.reason(.metabolic, "metabolic.pace", text) }
+        if density < 1, section.items.contains(where: { $0.reps != nil }), section.format != .forTime {
+            ctx.reason(.metabolic, "metabolic.density", "Fewer reps per round: your recent metcons were rated hard.")
+        } else if density > 1, section.items.contains(where: { $0.reps != nil }), section.format != .forTime {
+            ctx.reason(.metabolic, "metabolic.density", "A few more reps per round: your recent metcons were rated easy.")
+        }
         return section
     }
 
@@ -294,6 +310,21 @@ extension RulesWorkoutPlanner {
         case .forTime:
             let e = Int(((c.finishSec ?? 0) / 60).rounded())
             return "Reps are sized so you should finish in about \(e) min, well under the \(s.durationMin ?? 15)-min cap."
+        default:
+            return nil
+        }
+    }
+
+    /// "Reps sized to your recent pace: ..." when the learned pace is more than 5% off the default.
+    func paceText(_ s: WorkoutSection, pace: PaceModel) -> String? {
+        let k = Self.about(s.expectedScore ?? 0)
+        switch s.format {
+        case .amrapWithRest where abs(pace.windows - 1) > 0.05:
+            return "Reps sized to your recent pace: about \(k) rounds per \((s.workSec ?? 240) / 60)-min block."
+        case .amrap where abs(pace.continuous - 1) > 0.05:
+            return "Reps sized to your recent pace: about \(k) rounds in \(s.durationMin ?? 12) min."
+        case .forTime where abs(pace.forTime - 1) > 0.05:
+            return "Reps sized to your recent pace: you should finish in about \(Int(((s.expectedScore ?? 0) / 60).rounded())) min."
         default:
             return nil
         }
