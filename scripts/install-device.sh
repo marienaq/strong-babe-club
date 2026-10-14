@@ -23,6 +23,20 @@ if [[ -z "$DEVICE_ID" ]]; then
   exit 1
 fi
 
+# Xcode reuses a cached profile even when it is about to expire, so the
+# "renewed" app can die hours later. Drop ours if it has < 3 days left.
+PROFILES="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+for f in "$PROFILES"/*.mobileprovision; do
+  [[ -f "$f" ]] || continue
+  plist="$(security cms -D -i "$f" 2>/dev/null)" || continue
+  [[ "$(plutil -extract Name raw -o - - <<<"$plist" 2>/dev/null)" == *com.marienaq.strongbabeclub* ]] || continue
+  exp="$(plutil -extract ExpirationDate raw -o - - <<<"$plist")"
+  if (( $(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$exp" +%s) - $(date +%s) < 3 * 86400 )); then
+    echo "Profile expires $exp; removing it so Xcode makes a fresh one."
+    rm -f "$f"
+  fi
+done
+
 xcodegen generate >/dev/null
 xcodebuild build \
   -project StrongBabeClub.xcodeproj \
@@ -38,4 +52,6 @@ APP="build/DeviceData/Build/Products/Debug-iphoneos/StrongBabeClub.app"
 [[ -d "$APP" ]] || { echo "Build failed; see output above." >&2; exit 1; }
 
 xcrun devicectl device install app --device "$DEVICE_ID" "$APP"
+EXP="$(security cms -D -i "$APP/embedded.mobileprovision" | plutil -extract ExpirationDate raw -o - -)"
+echo "App expires $(date -j -f "%s" "$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$EXP" +%s)" "+%a %b %-d, %-I:%M %p"). Re-run this script before then."
 echo "Installed. First time only: on the iPhone go to Settings → General → VPN & Device Management → trust your developer app."
