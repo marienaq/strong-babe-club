@@ -140,6 +140,8 @@ public struct RulesWorkoutPlanner: WorkoutPlanner {
         var lifts: [Lift] = []
         var coachNote: CoachNote
         var reasons: [PlanReason] = []
+        /// The metcon candidate that won (tests look at it).
+        var lastRemix: MetconCandidate?
 
         init(request: PlanRequest, settings: PlannerSettings, history: [PlannedWorkout], library: MovementLibrary) {
             self.request = request

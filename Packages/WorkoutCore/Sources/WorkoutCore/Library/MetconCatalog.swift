@@ -76,7 +76,9 @@ public struct MetconShape: Hashable, Sendable, Identifiable {
 
     /// A metcon section skeleton for this shape (no items yet).
     public func section(capMinutes: Int? = nil) -> WorkoutSection {
-        WorkoutSection(kind: .metabolic, format: format, instructions: "", rounds: rounds, workSec: workSec, restSec: restSec,
+        // A fixed placeholder id: the planner gives the section a seeded id.
+        WorkoutSection(id: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), kind: .metabolic, format: format, instructions: "",
+                       rounds: rounds, workSec: workSec, restSec: restSec,
                        intervalSec: format == .emom ? 60 : nil, durationMin: format == .forTime ? capMinutes : minutes,
                        roundRestSec: roundRestSec, stimulus: stimulus)
     }

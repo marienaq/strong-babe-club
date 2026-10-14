@@ -61,6 +61,8 @@ struct MetconCandidate {
     /// For time: the base scheme ("10-9-...-1") and expected finish seconds.
     var scheme: String?
     var finishSec: Double?
+    /// Penalty of the first valid candidate in the winning group (best of N ≤ this).
+    var firstPenalty: Double = 0
 }
 
 extension RulesWorkoutPlanner {
@@ -186,13 +188,19 @@ extension RulesWorkoutPlanner {
             }
             return score
         }
+        // Technical orders that keep loaded moves before bodyweight ones.
+        let techOrders = permutations(tech).filter { t in
+            !zip(t, t.dropFirst()).contains { $0.move.implement == .bodyweight && $1.move.implement != .bodyweight }
+        }
         var best: [MetconPick]?
         var bestScore = -1
-        for perm in permutations(rest) {
-            let seq = tech + perm
-            guard !adjacent(seq, \.gripHeavy), !adjacent(seq, \.shoulderHeavy) else { continue }
-            let s = alternation(seq)
-            if s > bestScore { best = seq; bestScore = s }
+        for t in techOrders {
+            for perm in permutations(rest) {
+                let seq = t + perm
+                guard !adjacent(seq, \.gripHeavy), !adjacent(seq, \.shoulderHeavy) else { continue }
+                let s = alternation(seq)
+                if s > bestScore { best = seq; bestScore = s }
+            }
         }
         return best ?? tech + rest
     }
@@ -209,40 +217,63 @@ extension RulesWorkoutPlanner {
         return out
     }
 
+    /// Reps per move (spec §7.4): AMRAPs share the target round time
+    /// evenly (one move switch each), EMOMs get about 35 s of work. Then the
+    /// density from ratings, re-rounded inside the unbroken range.
+    static func sizeReps(_ section: WorkoutSection, moves: [Movement], pace: PaceModel, density: Double) -> [Int]? {
+        let n = Double(moves.count)
+        let perMove: Double
+        switch section.format {
+        case .amrap, .amrapWithRest:
+            guard let target = pace.targetFreshRoundSec(section) else { return nil }
+            perMove = (target - PaceModel.switchSec * n) / n
+        case .emom:
+            perMove = 35
+        default:
+            return nil
+        }
+        return moves.map { m in
+            let r = roundReps(perMove / max(m.secondsPerRep, 0.1), m)
+            return roundReps(Double(r) * density, m)
+        }
+    }
+
+    static let countWeights: [Int: Double] = [3: 45, 4: 50, 5: 5]
+
     /// Picks the move count for a shape: 3 (45), 4 (50), 5 (5).
     static func pickCount(_ counts: [Int], level: MetconLevel, rng: inout SeededRandom) -> Int? {
         guard !counts.isEmpty else { return nil }
         if level >= .fewerMoves { return counts.min() }
-        return counts.weightedPick(using: &rng) { [3: 45.0, 4: 50, 5: 5][$0] ?? 1 }
+        return counts.weightedPick(using: &rng) { countWeights[$0] ?? 1 }
     }
 
     // MARK: One candidate (steps 3-11)
 
-    func metconCandidate(format: SectionFormat, window: ClosedRange<Int>, setup: MetconSetup, pool: [MetconPick],
-                         level: MetconLevel, ctx: Context, rng: inout SeededRandom) -> MetconCandidate? {
+    /// Step 3: shapes (with move counts) whose length fits the window, in a
+    /// weighted random order: 3 moves (45), 4 (50), 5 (5).
+    static func shapeOptions(format: SectionFormat, window: ClosedRange<Int>, setup: MetconSetup, level: MetconLevel,
+                             rng: inout SeededRandom) -> [(shape: MetconShape?, moves: Int)] {
+        var options: [(shape: MetconShape?, moves: Int)] = []
+        if format == .forTime {
+            options = [3, 4, 5].filter { $0 <= setup.maxMoves }.map { (nil, $0) }
+        } else {
+            for s in MetconCatalog.shapes(format) {
+                for c in s.moveCounts where c <= setup.maxMoves && window.contains(s.seconds(moves: c) ?? 0) { options.append((s, c)) }
+            }
+        }
+        if level >= .fewerMoves, let fewest = options.map(\.moves).min() { options = options.filter { $0.moves == fewest } }
+        var ordered: [(shape: MetconShape?, moves: Int)] = []
+        while !options.isEmpty {
+            guard let pick = Array(options.indices).weightedPick(using: &rng, weight: { countWeights[options[$0].moves] ?? 1 }) else { break }
+            ordered.append(options.remove(at: pick))
+        }
+        return ordered
+    }
+
+    func metconCandidate(format: SectionFormat, shape: MetconShape?, moves n: Int, window: ClosedRange<Int>, setup: MetconSetup,
+                         pool: [MetconPick], level: MetconLevel, ctx: Context, rng: inout SeededRandom) -> MetconCandidate? {
         let fpool = Self.formatPool(pool, format: format)
         guard fpool.count >= 3 else { return nil }
-
-        // Step 3: shape and move count.
-        var shape: MetconShape?
-        let n: Int
-        if format == .forTime {
-            guard let c = Self.pickCount([3, 4, 5].filter { $0 <= setup.maxMoves }, level: level, rng: &rng) else { return nil }
-            n = c
-        } else {
-            var options: [(MetconShape, [Int])] = MetconCatalog.shapes(format).compactMap { s in
-                let counts = s.moveCounts.filter { $0 <= setup.maxMoves && window.contains(s.seconds(moves: $0) ?? 0) }
-                return counts.isEmpty ? nil : (s, counts)
-            }
-            if level >= .fewerMoves, let fewest = options.flatMap(\.1).min() {
-                options = options.compactMap { s, c in c.contains(fewest) ? (s, [fewest]) : nil }
-            }
-            guard !options.isEmpty else { return nil }
-            let (s, counts) = options[Int(rng.next() % UInt64(options.count))]
-            guard let c = Self.pickCount(counts, level: level, rng: &rng) else { return nil }
-            shape = s
-            n = c
-        }
 
         // Step 5: required slots, fewest candidates first.
         let armsNeedPull = setup.isPullDay && fpool.contains { $0.move.armKinds.contains(.pull) }
@@ -299,7 +330,8 @@ extension RulesWorkoutPlanner {
         guard (3...5).contains(picks.count), picks.count <= setup.maxMoves else { return nil }
 
         // Step 7: order.
-        let ordered = Self.order(picks, wraps: format != .forTime, soft: level < .noSoft)
+        // (The order never fails, so it applies at every fallback level.)
+        let ordered = Self.order(picks, wraps: format != .forTime, soft: true)
 
         // Step 8: reps or time, then weights.
         var section = shape?.section() ?? MetconShape(id: "ft", format: .forTime).section(capMinutes: 15)
@@ -311,18 +343,9 @@ extension RulesWorkoutPlanner {
         var scheme: String?
         var finish: Double?
         switch format {
-        case .amrap, .amrapWithRest:
-            guard let target = setup.pace.targetFreshRoundSec(section) else { return nil }
-            let share = (target - PaceModel.switchSec * Double(n)) / Double(n)
-            for (i, p) in ordered.enumerated() {
-                let r = Self.roundReps(share / max(p.move.secondsPerRep, 0.1), p.move)
-                items[i].reps = Self.roundReps(Double(r) * setup.density, p.move)
-            }
-        case .emom:
-            for (i, p) in ordered.enumerated() {
-                let r = Self.roundReps(35 / max(p.move.secondsPerRep, 0.1), p.move)
-                items[i].reps = Self.roundReps(Double(r) * setup.density, p.move)
-            }
+        case .amrap, .amrapWithRest, .emom:
+            guard let reps = Self.sizeReps(section, moves: ordered.map(\.move), pace: setup.pace, density: setup.density) else { return nil }
+            for i in items.indices { items[i].reps = reps[i] }
         case .stations, .interval, .tabata:
             for i in items.indices {
                 items[i].reps = nil
@@ -369,7 +392,9 @@ extension RulesWorkoutPlanner {
         }
         section.instructions = MetconCatalog.instructions(section, scheme: scheme, deload: setup.deload)
 
-        // Step 11: hard rules.
+        // Step 11: hard rules (with the expected rounds of MC-52).
+        if format == .amrapWithRest, !(3.2...6.5).contains(section.expectedScore ?? 0) { return nil }
+        if format == .amrap, !(7.5...13.5).contains(section.expectedScore ?? 0) { return nil }
         let secs = section.estimatedSeconds
         guard window.contains(secs), MetconCatalog.lengthRange.contains(secs) else { return nil }
         guard Set(required).isSubset(of: covered) else { return nil }
@@ -390,16 +415,23 @@ extension RulesWorkoutPlanner {
         guard pool.count >= 3 else { throw PlannerError.metconPoolTooSmall(available: pool.count) }
         let seed = rng.next()
         var attempt: UInt64 = 0
+        // The shape and move count are picked once; the 12 candidates vary
+        // the moves (so the best-of-12 doesn't drift toward fewer moves).
         func best(_ format: SectionFormat, _ level: MetconLevel, _ window: ClosedRange<Int>) -> MetconCandidate? {
-            var winner: MetconCandidate?
-            for _ in 0..<12 {
-                var r = SeededRandom(seed: seed &+ attempt &* 0x9E37_79B9_7F4A_7C15)
-                attempt &+= 1
-                guard let c = metconCandidate(format: format, window: window, setup: setup, pool: pool, level: level, ctx: ctx, rng: &r)
-                else { continue }
-                if winner == nil || c.score.penalty < winner!.score.penalty { winner = c }
+            var shapeRNG = SeededRandom(seed: seed ^ (UInt64(MetconCatalog.formats.firstIndex(of: format) ?? 0) &+ 1) &* 0xA24B_AED4_963E_E407)
+            for option in Self.shapeOptions(format: format, window: window, setup: setup, level: level, rng: &shapeRNG) {
+                var winner: MetconCandidate?
+                for _ in 0..<12 {
+                    var r = SeededRandom(seed: seed &+ attempt &* 0x9E37_79B9_7F4A_7C15)
+                    attempt &+= 1
+                    guard var c = metconCandidate(format: format, shape: option.shape, moves: option.moves, window: window, setup: setup,
+                                                  pool: pool, level: level, ctx: ctx, rng: &r) else { continue }
+                    c.firstPenalty = winner?.firstPenalty ?? c.score.penalty
+                    if winner == nil || c.score.penalty < winner!.score.penalty { winner = c }
+                }
+                if let winner { return winner }
             }
-            return winner
+            return nil
         }
         // F5 order: the planned format, then the same stimulus, then any
         // format with a shape in the window (time-based first when the pool

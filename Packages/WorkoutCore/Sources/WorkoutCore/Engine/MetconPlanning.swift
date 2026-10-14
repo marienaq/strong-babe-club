@@ -95,6 +95,18 @@ extension RulesWorkoutPlanner {
         for b in due { ctx.reason(.metabolic, "benchmark.skipped", "\(b.name) couldn't fit this quarter.") }
     }
 
+    /// Test hook: the winning remix candidate for a request (best of N).
+    func remixCandidate(_ r: PlanRequest) throws -> MetconCandidate? {
+        let settings = r.settings.sanitized()
+        let history = r.history.filter { $0.date < r.date && !$0.isDeleted }.sorted { $0.date < $1.date }
+        var ctx = Context(request: r, settings: settings, history: history, library: library)
+        let strength = buildStrength(&ctx)
+        let warmup = try buildWarmup(&ctx)
+        var rng = ctx.rng(.metabolic)
+        _ = try buildRemixSection(&ctx, warmup: warmup, strength: strength, rng: &rng)
+        return ctx.lastRemix
+    }
+
     /// The day's plan when the date isn't a scheduled day (a moved workout):
     /// the week's middle length and a format by weight.
     func unscheduledPlan(_ ctx: Context, lift: Lift, rng: inout SeededRandom) -> DayMetconPlan {
@@ -187,6 +199,7 @@ extension RulesWorkoutPlanner {
                                 warmupIDs: Set(warmup.items.map(\.movementID)),
                                 accessoryID: strength.secondaryItems.first?.movementID, usage: ctx.muscleUsage(days: 14))
         let c = try buildRemix(ctx, setup: setup, rng: &rng)
+        ctx.lastRemix = c
         var section = c.section
         section.id = UUID.seeded(&rng)
 
